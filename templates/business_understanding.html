@@ -1,0 +1,117 @@
+{% extends "layout.html" %}
+{% block title %}Entendimiento del Negocio y los Datos{% endblock %}
+{% block content %}
+<h1>Entendimiento del Negocio y los Datos</h1>
+<hr>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <h2>Objetivos de Negocio</h2>
+        <div class="card mb-4">
+            <div class="card-body">
+                <p>
+                    El proyecto se enmarca en el Objetivo de Desarrollo Sostenible (ODS) 6: Agua Limpia y Saneamiento, 
+                    buscando contribuir a una gestión más eficiente y equitativa del recurso hídrico en el departamento de Caldas.
+                </p>
+                <p>
+                    El modelo de Machine Learning está diseñado para predecir el consumo mensual de agua potable (acueducto) 
+                    en diferentes municipios de Caldas, segmentado por estrato socioeconómico, a partir de variables como:
+                </p>
+                <ul>
+                    <li>Año y mes</li>
+                    <li>Municipio</li>
+                    <li>Estrato (1 al 6)</li>
+                    <li>Número de suscriptores</li>
+                </ul>
+                <p>
+                    El objetivo del modelo es anticipar la demanda hídrica para distintos contextos socioeconómicos y territoriales,
+                    lo cual puede ser útil para optimizar la planificación y asignación de recursos hídricos en la región.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <h2>Preguntas Clave</h2>
+        <div class="card mb-4">
+            <div class="card-body">
+                <ul>
+                    <li>¿Qué variables explican mejor el consumo de agua potable en los municipios de Caldas?</li>
+                    <li>¿Cómo varía el consumo entre diferentes estratos socioeconómicos en la región?</li>
+                    <li>¿Es posible predecir el consumo mensual futuro con base en patrones históricos?</li>
+                    <li>¿Qué municipios de Caldas podrían requerir intervención por consumo anómalo o ineficiente?</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <h2>Evaluación de Datos</h2>
+        <div class="card mb-4">
+            <div class="card-body">
+                <h4>Calidad</h4>
+                <ul>
+                    <li>Formato limpio y estructurado: Los datos vienen en formato tabular con nombres de columna comprensibles.</li>
+                    <li>Sin combinaciones complejas: No es necesario integrar múltiples fuentes para comenzar el análisis.</li>
+                    <li>Datos oficiales y actualizados: Provienen de entidades gubernamentales confiables, con cobertura histórica.</li>
+                </ul>
+                
+                <h4>Relevancia</h4>
+                <ul>
+                    <li>Directamente relacionado con el objetivo del proyecto: Analizar patrones de consumo hídrico.</li>
+                    <li>Permite diferenciar entre estratos, municipios y periodos, lo que habilita modelos explicativos y predictivos útiles para planificación de recursos.</li>
+                    <li>Apoya el ODS 6 – Agua Limpia y Saneamiento, al proveer insumos para decisiones sobre acceso, uso y sostenibilidad del agua.</li>
+                </ul>
+                
+                <h4>Suficiencia</h4>
+                <ul>
+                    <li>Cobertura temporal: Series históricas suficientes para análisis de tendencias y predicciones.</li>
+                    <li>Cobertura geográfica: Abarca los principales municipios del departamento de Caldas.</li>
+                    <li>Variables clave disponibles: Año, mes, municipio, estrato, tipo de servicio, consumo y número de suscriptores.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <h2>Análisis de Viabilidad</h2>
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h4>Viabilidad Técnica</h4>
+                        <ul>
+                            <li>Disponibilidad de datos: Dataset público en formato tabular bien estructurado.</li>
+                            <li>Formato adecuado: Contiene campos clave para entrenamiento supervisado.</li>
+                            <li>Modelo aplicable: Se pueden usar modelos de regresión como Random Forest, XGBoost o modelos lineales.</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <h4>Limitaciones y Riesgos</h4>
+                        <ul>
+                            <li>Falta de variables externas: No incluye variables climáticas o demográficas que podrían enriquecer la predicción.</li>
+                            <li>Cambios en políticas públicas: Factores no reflejados en los datos pueden afectar el consumo y no ser capturados por el modelo.</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <h4>Viabilidad Organizacional</h4>
+                        <ul>
+                            <li>Relevancia para políticas públicas: Ayuda a entidades gubernamentales y operadoras a prever necesidades de agua.</li>
+                            <li>Alineación con ODS 6: Directamente relacionado con la sostenibilidad del recurso hídrico.</li>
+                            <li>Fácil implementación inicial: Viable construir una primera versión funcional demostrativa.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

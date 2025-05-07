@@ -1,0 +1,349 @@
+{% extends "layout.html" %}
+{% block title %}Ingeniería de Datos{% endblock %}
+{% block content %}
+<h1>Ingeniería de Datos</h1>
+<hr>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Proceso de Ingeniería de Datos</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    En esta fase, se realiza la selección, limpieza y transformación de los datos 
+                    de consumo de agua potable en el departamento de Caldas. El objetivo es preparar 
+                    un conjunto de datos de alta calidad para la fase posterior de modelado.
+                </p>
+                
+                {% if not processed_data_exists %}
+                <div class="alert alert-warning">
+                    <h4 class="alert-heading">Datos no procesados</h4>
+                    <p>Los datos aún no han sido procesados. Haga clic en el botón para iniciar el procesamiento.</p>
+                    <button id="process-data-btn" class="btn btn-primary">Procesar Datos</button>
+                    <div id="processing-status" class="mt-2" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Procesando...</span>
+                        </div>
+                        <span class="ms-2">Procesando datos, por favor espere...</span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-success">
+                    <h4 class="alert-heading">Datos procesados correctamente</h4>
+                    <p>Los datos han sido procesados y están listos para la fase de modelado.</p>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h4>Estadísticas del conjunto de datos procesado</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Registros</h5>
+                                        <p class="card-text display-6">{{ stats.num_records }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Municipios</h5>
+                                        <p class="card-text display-6">{{ stats.num_municipalities }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Período</h5>
+                                        <p class="card-text display-6">{{ stats.years_range }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Total Suscriptores</h5>
+                                        <p class="card-text display-6">{{ stats.total_subscribers }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Consumo Total (m³)</h5>
+                                        <p class="card-text display-6">{{ stats.total_consumption }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Selección</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    En esta etapa, se identificaron las fuentes de datos relevantes para el proyecto 
+                    y se seleccionaron las columnas clave para el análisis:
+                </p>
+                <ul>
+                    <li><strong>AÑO y MES:</strong> Variables temporales para identificar patrones estacionales y tendencias.</li>
+                    <li><strong>MUNICIPIO:</strong> Ubicación geográfica dentro del departamento de Caldas.</li>
+                    <li><strong>ESTRATO:</strong> Clasificación socioeconómica, centrándonos solo en los estratos residenciales (1-6).</li>
+                    <li><strong>No. SUSCRIPTORES ACUEDUCTO:</strong> Cantidad de usuarios del servicio.</li>
+                    <li><strong>CONSUMO M3 ACUEDUCTO:</strong> Volumen total de agua consumida.</li>
+                    <li><strong>PROMEDIO CONSUMO ACUEDUCTO:</strong> Consumo promedio por suscriptor.</li>
+                </ul>
+                <p>
+                    Del conjunto de datos original, se excluyeron columnas no relevantes como NIT, RAZÓN SOCIAL, 
+                    y datos de alcantarillado, enfocándonos exclusivamente en el servicio de acueducto.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Limpieza</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    La fase de limpieza se centró en corregir inconsistencias de formato y filtrar registros problemáticos:
+                </p>
+                <ul>
+                    <li>
+                        <strong>Tratamiento de valores numéricos:</strong> Se implementó un enfoque sofisticado para manejar 
+                        correctamente los formatos numéricos, tratando los valores como cadenas de texto durante el proceso
+                        de limpieza para evitar conversiones automáticas que podrían introducir errores.
+                    </li>
+                    <li>
+                        <strong>Detección inteligente de valores problemáticos:</strong> Se identificaron y eliminaron 
+                        registros con puntos decimales incorrectos (patrones como "1.35"), pero preservando valores como "434.0"
+                        que representan enteros formateados como flotantes.
+                    </li>
+                    <li>
+                        <strong>Filtrado de datos residenciales:</strong> Se excluyeron categorías no residenciales 
+                        como "Industrial", "Comercial" y "Público/Oficial", centrando el análisis en 
+                        consumo doméstico por estrato socioeconómico.
+                    </li>
+                    <li>
+                        <strong>Omisión de registros sin suscriptores:</strong> Se eliminaron registros donde 
+                        "No. SUSCRIPTORES ACUEDUCTO" era vacío o cero, ya que no aportan información 
+                        significativa sobre patrones de consumo.
+                    </li>
+                </ul>
+                <p>
+                    Este proceso meticuloso de limpieza permitió preservar la mayor cantidad posible de 
+                    registros válidos (más de 9,000) mientras se eliminaban únicamente aquellos con 
+                    problemas reales de formato, garantizando así un conjunto de datos de alta calidad.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Transformación</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    Durante la fase de transformación, se prepararon los datos para su uso en modelos predictivos:
+                </p>
+                <ul>
+                    <li>
+                        <strong>Conversión del estrato:</strong> Se extrajo el número de estrato eliminando 
+                        el prefijo "Estrato", convirtiéndolo en una variable numérica para facilitar el análisis.
+                    </li>
+                    <li>
+                        <strong>Normalización de meses:</strong> Se transformaron los nombres de meses a valores 
+                        numéricos (1-12) para facilitar el análisis temporal y permitir ordenamiento cronológico.
+                    </li>
+                    <li>
+                        <strong>Limpieza de separadores numéricos:</strong> Se eliminaron puntos separadores de miles 
+                        en campos numéricos, distinguiendo cuidadosamente entre puntos decimales legítimos y separadores,
+                        con un tratamiento especial para valores que terminan en ".0".
+                    </li>
+                    <li>
+                        <strong>Estandarización de municipios:</strong> Se normalizaron los nombres de municipios 
+                        aplicando formato de capitalización consistente para mejorar la legibilidad.
+                    </li>
+                </ul>
+                <p>
+                    Las transformaciones aplicadas preservan la integridad de los datos mientras los convierten a formatos
+                    apropiados para el modelado estadístico, con especial atención a mantener la coherencia entre
+                    el consumo total, el número de suscriptores y el consumo promedio.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Documentación</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    Todas las transformaciones realizadas quedaron documentadas en el código fuente 
+                    con comentarios descriptivos y en la documentación del proyecto:
+                </p>
+                <ul>
+                    <li>
+                        <strong>Diagnósticos detallados:</strong> El proceso incluye impresión de diagnósticos en 
+                        cada etapa, mostrando ejemplos concretos de los valores antes y después del procesamiento 
+                        para facilitar la comprensión y verificación.
+                    </li>
+                    <li>
+                        <strong>Registro del proceso:</strong> Se mantiene un registro detallado de cada paso 
+                        del procesamiento, incluyendo conteos de registros procesados, filtrados y transformados.
+                    </li>
+                    <li>
+                        <strong>Explicación de decisiones:</strong> El código documenta claramente las decisiones tomadas
+                        para manejar casos especiales como los formatos numéricos inconsistentes.
+                    </li>
+                </ul>
+                <p>
+                    Esta documentación exhaustiva garantiza la transparencia del proceso y facilita
+                    futuras actualizaciones o adaptaciones a nuevos conjuntos de datos.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if visualizations_exist %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Visualizaciones</h3>
+            </div>
+            <div class="card-body">
+                <p class="mb-4">
+                    Las siguientes visualizaciones permiten entender mejor la distribución y patrones 
+                    en los datos de consumo hídrico en Caldas:
+                </p>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Distribución del consumo promedio por estrato</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="{{ url_for('static', filename='img/data_viz/consumo_por_estrato.png') }}" class="img-fluid" alt="Consumo por estrato">
+                            </div>
+                            <div class="card-footer">
+                                <p class="text-muted">
+                                    Esta visualización muestra cómo varía el consumo promedio de agua entre los diferentes 
+                                    estratos socioeconómicos en el departamento de Caldas.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Tendencia temporal de consumo por estrato</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="{{ url_for('static', filename='img/data_viz/tendencia_consumo.png') }}" class="img-fluid" alt="Tendencia de consumo">
+                            </div>
+                            <div class="card-footer">
+                                <p class="text-muted">
+                                    Evolución del consumo total de agua a lo largo del tiempo por año y mes, segmentado 
+                                    por estrato socioeconómico, revelando patrones estacionales y tendencias.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Mapa de calor: Consumo promedio por municipio y estrato</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="{{ url_for('static', filename='img/data_viz/mapa_calor_consumo.png') }}" class="img-fluid" alt="Mapa de calor de consumo">
+                            </div>
+                            <div class="card-footer">
+                                <p class="text-muted">
+                                    Esta visualización permite identificar patrones geográficos en el consumo de agua, 
+                                    mostrando qué municipios y estratos tienen mayores o menores niveles de consumo promedio.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Verificar si el botón existe
+    const processButton = document.getElementById('process-data-btn');
+    if (processButton) {
+        console.log('Botón de procesamiento encontrado');
+        
+        processButton.addEventListener('click', function() {
+            console.log('Botón de procesamiento clickeado');
+            this.disabled = true;
+            document.getElementById('processing-status').style.display = 'block';
+            
+            fetch('/process-data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Datos procesados correctamente. La página se recargará para mostrar los resultados.');
+                        location.reload();
+                    } else {
+                        alert('Error al procesar los datos: ' + data.message);
+                        processButton.disabled = false;
+                        document.getElementById('processing-status').style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    alert('Error en la solicitud: ' + error);
+                    processButton.disabled = false;
+                    document.getElementById('processing-status').style.display = 'none';
+                });
+        });
+    } else {
+        console.log('Botón de procesamiento NO encontrado');
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

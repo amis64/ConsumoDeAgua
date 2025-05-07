@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+{% block title %}Inicio{% endblock %}
+{% block content %}
+<div class="jumbotron">
+    <h1 class="display-4">Modelado del Consumo de Agua Potable en Caldas</h1>
+    <p class="lead">Proyecto de Machine Learning para predecir patrones de consumo hídrico por estrato socioeconómico</p>
+    <hr class="my-4">
+    <p>
+        Este proyecto implementa la metodología CRISP-ML para desarrollar un modelo predictivo
+        del consumo de agua potable en el departamento de Caldas, segmentado por estrato socioeconómico.
+        El objetivo es ofrecer herramientas de planificación para una gestión más eficiente y
+        equitativa del recurso hídrico.
+    </p>
+    <a class="btn btn-primary btn-lg" href="/entendimiento-negocio" role="button">Comenzar</a>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Entendimiento del Negocio y los Datos</h5>
+                <p class="card-text">Comprensión de objetivos, preguntas clave, evaluación de datos y análisis de viabilidad.</p>
+                <a href="/entendimiento-negocio" class="btn btn-primary">Ver más</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Ingeniería de Datos</h5>
+                <p class="card-text">Selección, limpieza, transformación y documentación de los datos.</p>
+                <a href="/ingenieria-datos" class="btn btn-primary">Ver más</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Ingeniería del Modelo</h5>
+                <p class="card-text">Selección de algoritmos, entrenamiento, ajuste de hiperparámetros y validación.</p>
+                <a href="/ingenieria-modelo" class="btn btn-primary">Ver más</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
