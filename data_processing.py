@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
+import re
 
 def load_data(file_path):
     """
@@ -32,32 +33,20 @@ def select_columns(df):
     """
     Selecciona solo las columnas relevantes para el análisis
     """
-    # Detectar la columna de año - que puede aparecer como AÑO o AÃ'O
-    year_column = [col for col in df.columns if 'A' in col and ('Ñ' in col or 'Ã' in col)][0]
-    print(f"Columna de año detectada como: {year_column}")
-    
-    # Mapeo de columnas necesarias con sus posibles variantes
+    # Mapeo de columnas necesarias
     column_mapping = {
-        'AÑO': year_column,
         'MES': 'MES',
         'MUNICIPIO': 'MUNICIPIO', 
         'ESTRATO': 'ESTRATO',
-        'No. SUSCRIPTORES ACUEDUCTO': 'No. SUSCRIPTORES ACUEDUCTO',
-        'CONSUMO M3 ACUEDUCTO': 'CONSUMO M3 ACUEDUCTO',
         'PROMEDIO CONSUMO ACUEDUCTO': 'PROMEDIO CONSUMO ACUEDUCTO'
     }
     
     try:
-        # Seleccionar columnas usando el mapeo
-        cols_to_keep = [column_mapping[col] for col in ['AÑO', 'MES', 'MUNICIPIO', 'ESTRATO', 
-                                                       'No. SUSCRIPTORES ACUEDUCTO', 
-                                                       'CONSUMO M3 ACUEDUCTO', 
+        # Seleccionar solo las columnas necesarias según el nuevo enfoque
+        cols_to_keep = [column_mapping[col] for col in ['MES', 'MUNICIPIO', 'ESTRATO', 
                                                        'PROMEDIO CONSUMO ACUEDUCTO']]
         
         df_selected = df[cols_to_keep].copy()  # Usar .copy() para evitar SettingWithCopyWarning
-        
-        # Renombrar la columna de año para consistencia
-        df_selected = df_selected.rename(columns={year_column: 'AÑO'})
         
         print(f"Columnas seleccionadas. Nuevas dimensiones: {df_selected.shape}")
         return df_selected
@@ -69,8 +58,7 @@ def select_columns(df):
 
 def clean_data(df):
     """
-    Limpia los datos tratando todo como strings hasta la conversión final,
-    preservando valores enteros que aparecen como flotantes con ".0"
+    Limpia los datos, enfocándose solo en el consumo promedio
     """
     # Asegurar que trabajamos con una copia
     df = df.copy()
@@ -81,120 +69,89 @@ def clean_data(df):
     df = df[df['ESTRATO'].str.contains('Estrato', case=False, na=False)]
     print(f"Registros después de filtrar solo estratos residenciales: {len(df)}")
     
-    # Convertir el estrato a número manteniendo los valores originales como strings
+    # Convertir el estrato a número
     df['ESTRATO_NUM'] = df['ESTRATO'].str.extract(r'Estrato(\d+)', expand=False)
     df = df.dropna(subset=['ESTRATO_NUM'])  # Eliminar filas donde no se pudo extraer un número
     print(f"Registros después de limpiar estratos: {len(df)}")
     
-    # PASO 1: Convertir todo a strings para evitar conversiones automáticas
-    cols_to_clean = ['No. SUSCRIPTORES ACUEDUCTO', 'CONSUMO M3 ACUEDUCTO', 'PROMEDIO CONSUMO ACUEDUCTO']
-    for col in cols_to_clean:
-        df[f"{col}_STR"] = df[col].astype(str)
+    # Asegurar que el consumo promedio sea numérico
+    df['PROMEDIO_NUM'] = pd.to_numeric(df['PROMEDIO CONSUMO ACUEDUCTO'], errors='coerce')
     
-    # Mostrar algunos ejemplos para diagnóstico
-    print("\nEjemplos de valores originales:")
-    for i in range(min(10, len(df))):
-        print(f"Fila {i+1}: Suscriptores: {df['No. SUSCRIPTORES ACUEDUCTO_STR'].iloc[i]}, " +
-              f"Consumo: {df['CONSUMO M3 ACUEDUCTO_STR'].iloc[i]}, " +
-              f"Promedio: {df['PROMEDIO CONSUMO ACUEDUCTO_STR'].iloc[i]}")
+    # Eliminar registros con valores inválidos o cero
+    df = df.dropna(subset=['PROMEDIO_NUM'])
+    df = df[df['PROMEDIO_NUM'] > 0]  # Eliminar registros con consumo promedio cero o negativo
     
-    # PASO 2: Identificar valores problemáticos pero EXCLUYENDO aquellos que terminan en ".0"
-    # Patrón que excluye específicamente ".0" al final
-    patron_problematico = r'\.\d{1,2}$'
-    patron_float_entero = r'\.0$'
+    print(f"Registros después de limpieza numérica: {len(df)}")
     
-    # Usar funciones lambda para aplicar la lógica específica
-    def es_problematico(valor):
-        if pd.isna(valor):
-            return False
-        valor_str = str(valor)
-        # Si termina en ".0", NO es problemático (es un entero representado como float)
-        if re.search(patron_float_entero, valor_str):
-            return False
-        # Si tiene un punto seguido de 1-2 dígitos (y no es ".0"), SÍ es problemático
-        return bool(re.search(patron_problematico, valor_str))
-    
-    # Aplicar las funciones a las columnas
-    import re
-    problematicos_suscriptores = df['No. SUSCRIPTORES ACUEDUCTO_STR'].apply(es_problematico)
-    problematicos_consumo = df['CONSUMO M3 ACUEDUCTO_STR'].apply(es_problematico)
-    
-    # Mostrar ejemplos de valores problemáticos
-    if problematicos_suscriptores.any() or problematicos_consumo.any():
-        print("\nEjemplos de valores con formato problemático:")
-        if problematicos_suscriptores.any():
-            print("Suscriptores problemáticos:", df.loc[problematicos_suscriptores, 'No. SUSCRIPTORES ACUEDUCTO_STR'].head(3).tolist())
-        if problematicos_consumo.any():
-            print("Consumo problemático:", df.loc[problematicos_consumo, 'CONSUMO M3 ACUEDUCTO_STR'].head(3).tolist())
-    
-    # PASO 3: Eliminar solo los registros realmente problemáticos
-    registros_problematicos = problematicos_suscriptores | problematicos_consumo
-    df = df[~registros_problematicos]
-    print(f"Registros eliminados por formato decimal incorrecto: {registros_problematicos.sum()}")
-    print(f"Registros restantes: {len(df)}")
-    
-    # PASO 4: Limpiar los datos para conversión numérica
-    # Para valores que terminan en ".0", simplemente eliminar el ".0"
-    def limpiar_valor(valor):
-        valor_str = str(valor)
-        # Si termina en ".0", eliminar el ".0"
-        if re.search(r'\.0$', valor_str):
-            return valor_str.replace('.0', '')
-        # Si tiene otros puntos (separadores de miles), eliminarlos
-        return valor_str.replace('.', '')
-    
-    df['SUSCRIPTORES_LIMPIO'] = df['No. SUSCRIPTORES ACUEDUCTO_STR'].apply(limpiar_valor)
-    df['CONSUMO_LIMPIO'] = df['CONSUMO M3 ACUEDUCTO_STR'].apply(limpiar_valor)
-    
-    # Para el promedio, reemplazar comas por puntos (es un decimal)
-    df['PROMEDIO_LIMPIO'] = df['PROMEDIO CONSUMO ACUEDUCTO_STR'].str.replace(',', '.')
-    
-    # Mostrar ejemplos de valores limpios
-    print("\nEjemplos de valores después de limpieza:")
-    for i in range(min(10, len(df))):
-        print(f"Fila {i+1}: Suscriptores: {df['SUSCRIPTORES_LIMPIO'].iloc[i]}, " +
-              f"Consumo: {df['CONSUMO_LIMPIO'].iloc[i]}, " +
-              f"Promedio: {df['PROMEDIO_LIMPIO'].iloc[i]}")
-    
-    # PASO 6: Convertir a numéricos para los cálculos finales
-    df['SUSCRIPTORES_NUM'] = pd.to_numeric(df['SUSCRIPTORES_LIMPIO'], errors='coerce')
-    df['CONSUMO_NUM'] = pd.to_numeric(df['CONSUMO_LIMPIO'], errors='coerce')
-    df['PROMEDIO_NUM'] = pd.to_numeric(df['PROMEDIO_LIMPIO'], errors='coerce')
-    
-    # Eliminar registros con valores inválidos
-    df = df.dropna(subset=['SUSCRIPTORES_NUM', 'CONSUMO_NUM', 'PROMEDIO_NUM'])
-    df = df[df['SUSCRIPTORES_NUM'] > 0]  # Eliminar registros sin suscriptores
-    
-    print(f"Registros después de conversión numérica: {len(df)}")
-    
-    # PASO 7: Comprobar coherencia entre consumo y promedio
-    df['PROMEDIO_CALCULADO'] = df['CONSUMO_NUM'] / df['SUSCRIPTORES_NUM']
-    df['DIFF_ABSOLUTA'] = abs(df['PROMEDIO_CALCULADO'] - df['PROMEDIO_NUM'])
-    
-    # Mostrar sólo registros donde la diferencia es grande para diagnóstico
-    grandes_diferencias = df['DIFF_ABSOLUTA'] > 1
-    if grandes_diferencias.any():
-        print("\nRegistros con diferencias grandes entre promedio calculado y reportado:")
-        for i, (idx, row) in enumerate(df[grandes_diferencias].head(5).iterrows()):
-            print(f"Fila {i+1}: Suscriptores: {row['SUSCRIPTORES_NUM']}, " +
-                  f"Consumo: {row['CONSUMO_NUM']}, " +
-                  f"Promedio reportado: {row['PROMEDIO_NUM']}, " +
-                  f"Promedio calculado: {row['PROMEDIO_CALCULADO']:.2f}")
-    
-    # PASO 8: Construir el DataFrame final con las columnas correctas
+    # Construir el DataFrame final con las columnas clave según el nuevo enfoque
     df_final = pd.DataFrame({
-        'AÑO': df['AÑO'],
         'MES': df['MES'],
         'MUNICIPIO': df['MUNICIPIO'],
         'ESTRATO': df['ESTRATO_NUM'].astype(int),
-        'No. SUSCRIPTORES ACUEDUCTO': df['SUSCRIPTORES_NUM'].astype(int),
-        'CONSUMO M3 ACUEDUCTO': df['CONSUMO_NUM'].astype(int),
         'PROMEDIO CONSUMO ACUEDUCTO': df['PROMEDIO_NUM']
     })
     
     print(f"\nRegistros finales después de limpieza completa: {len(df_final)}")
     
     return df_final
+
+def analyze_municipality_balance(df):
+    """
+    Analiza el balance de datos por municipio y regresa un dataframe equilibrado si es necesario
+    """
+    # Contar registros por municipio
+    municipio_counts = df['MUNICIPIO'].value_counts()
+    total_registros = len(df)
+    
+    print("\n=== Balance de datos por municipio ===")
+    print(municipio_counts)
+    
+    # Calcular porcentajes
+    municipio_pct = (municipio_counts / total_registros * 100).round(2)
+    print("\nPorcentaje de registros por municipio:")
+    for municipio, pct in municipio_pct.items():
+        print(f"{municipio}: {pct}%")
+    
+    # Identificar municipios con muy pocos datos (menos del 1%)
+    municipios_escasos = municipio_pct[municipio_pct < 1].index.tolist()
+    if municipios_escasos:
+        print(f"\nMunicipios con menos del 1% de los datos: {municipios_escasos}")
+        
+        # Preguntar si se eliminan (en este caso lo dejamos a criterio automático)
+        if len(municipios_escasos) > len(municipio_pct) * 0.3:  # Si son más del 30% de los municipios
+            print("Hay muchos municipios con pocos datos. Se mantendrán para preservar la diversidad geográfica.")
+        else:
+            print(f"Se eliminarán {len(municipios_escasos)} municipios con pocos datos para mejorar el balance.")
+            df = df[~df['MUNICIPIO'].isin(municipios_escasos)]
+            
+    # Identificar municipios sobre-representados (más del 20%)
+    municipios_sobrerep = municipio_pct[municipio_pct > 20].index.tolist()
+    if municipios_sobrerep:
+        print(f"\nMunicipios sobre-representados (>20%): {municipios_sobrerep}")
+        
+        # Determinar si es necesario equilibrar
+        if max(municipio_pct) > 30:  # Si algún municipio tiene más del 30%
+            print("Equilibrando dataset para reducir sesgo geográfico...")
+            
+            # Encontrar el número objetivo de registros por municipio (50% del municipio más representado)
+            target_count = int(municipio_counts[municipios_sobrerep[0]] * 0.5)
+            
+            # Crear dataframe equilibrado
+            df_balanced = pd.DataFrame()
+            
+            for municipio in df['MUNICIPIO'].unique():
+                df_muni = df[df['MUNICIPIO'] == municipio]
+                
+                if len(df_muni) > target_count:
+                    # Muestrear aleatoriamente
+                    df_muni = df_muni.sample(target_count, random_state=42)
+                
+                df_balanced = pd.concat([df_balanced, df_muni])
+            
+            print(f"Dataset equilibrado. Registros originales: {len(df)}, Registros equilibrados: {len(df_balanced)}")
+            return df_balanced
+    
+    return df
 
 def transform_data(df):
     """
@@ -207,16 +164,16 @@ def transform_data(df):
     }
     df['MES_NUM'] = df['MES'].map(meses)
     
-    # Convertir AÑO a formato correcto si contiene comas o puntos
-    if df['AÑO'].dtype == object:
-        df['AÑO'] = df['AÑO'].astype(str).str.replace(',', '').str.replace('.', '')
-        df['AÑO'] = pd.to_numeric(df['AÑO'], errors='coerce').astype(int)
-    
     # Normalizar nombres de municipios (capitalizar)
     df['MUNICIPIO'] = df['MUNICIPIO'].str.title()
     
+    # Aplicar one-hot encoding para ESTRATO y MUNICIPIO
+    df_dummies = pd.get_dummies(df, columns=['ESTRATO', 'MUNICIPIO'], prefix=['Estrato', 'Municipio'])
+    
     print("Transformaciones completadas")
-    return df
+    print(f"Dimensiones después de one-hot encoding: {df_dummies.shape}")
+    
+    return df_dummies
 
 def generate_visualizations(df, output_path):
     """
@@ -224,44 +181,71 @@ def generate_visualizations(df, output_path):
     """
     os.makedirs(output_path, exist_ok=True)
     
-    # 1. Distribución de consumo por estrato
+    # Crear una versión del dataframe sin one-hot encoding para visualizaciones
+    df_viz = df.copy()
+    if 'ESTRATO' not in df.columns:
+        # Reconstruir la columna ESTRATO a partir de columnas dummies
+        estrato_cols = [col for col in df.columns if col.startswith('Estrato_')]
+        if estrato_cols:
+            for col in estrato_cols:
+                estrato_num = col.split('_')[1]
+                df_viz.loc[df[col] == 1, 'ESTRATO'] = int(estrato_num)
+    
+    # 1. Distribución de consumo promedio por estrato
     plt.figure(figsize=(10, 6))
-    sns.boxplot(x='ESTRATO', y='PROMEDIO CONSUMO ACUEDUCTO', data=df)
+    sns.boxplot(x='ESTRATO', y='PROMEDIO CONSUMO ACUEDUCTO', data=df_viz)
     plt.title('Distribución del consumo promedio por estrato')
     plt.xlabel('Estrato socioeconómico')
     plt.ylabel('Consumo promedio (m³)')
     plt.savefig(os.path.join(output_path, 'consumo_por_estrato.png'))
     plt.close()  # Cerrar la figura para liberar memoria
     
-    # 2. Tendencia temporal de consumo (usando AÑO y MES_NUM en lugar de FECHA)
-    # Crear una columna temporal para ordenar
-    df['PERIODO'] = df['AÑO'].astype(str) + '-' + df['MES_NUM'].astype(str).str.zfill(2)
-    
-    # Agrupar por período y estrato
-    consumo_mensual = df.groupby(['PERIODO', 'ESTRATO'])['CONSUMO M3 ACUEDUCTO'].sum().reset_index()
-    
-    # Ordenar por período para asegurar la correcta visualización temporal
-    consumo_mensual = consumo_mensual.sort_values('PERIODO')
-    
+    # 2. Tendencia mensual de consumo por estrato
     plt.figure(figsize=(12, 6))
-    for estrato in sorted(df['ESTRATO'].unique()):
-        datos_estrato = consumo_mensual[consumo_mensual['ESTRATO'] == estrato]
-        plt.plot(datos_estrato['PERIODO'], datos_estrato['CONSUMO M3 ACUEDUCTO'], label=f'Estrato {estrato}')
     
-    # Configurar el eje X para mostrar solo algunos períodos (para evitar sobrecarga)
-    plt.xticks(rotation=45)
-    plt.gca().xaxis.set_major_locator(plt.MaxNLocator(10))  # Mostrar aproximadamente 10 etiquetas
+    for estrato in sorted(df_viz['ESTRATO'].unique()):
+        datos_estrato = df_viz[df_viz['ESTRATO'] == estrato]
+        consumo_mensual = datos_estrato.groupby('MES_NUM')['PROMEDIO CONSUMO ACUEDUCTO'].mean()
+        plt.plot(consumo_mensual.index, consumo_mensual.values, label=f'Estrato {estrato}')
     
-    plt.title('Tendencia de consumo total por estrato a lo largo del tiempo')
-    plt.xlabel('Período (Año-Mes)')
-    plt.ylabel('Consumo total (m³)')
+    plt.title('Tendencia de consumo promedio por estrato a lo largo del año')
+    plt.xlabel('Mes')
+    plt.ylabel('Consumo promedio (m³)')
+    plt.xticks(range(1, 13), ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'])
     plt.legend()
-    plt.tight_layout()  # Ajustar layout para evitar recortes
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
     plt.savefig(os.path.join(output_path, 'tendencia_consumo.png'))
-    plt.close()  # Cerrar la figura para liberar memoria
+    plt.close()
     
     # 3. Mapa de calor de consumo por municipio y estrato
-    consumo_municipio_estrato = df.pivot_table(
+    # Reconstruir dataframe para el mapa de calor
+    if 'MUNICIPIO' not in df_viz.columns or 'ESTRATO' not in df_viz.columns:
+        # Recrear un dataframe con municipio y estrato
+        df_heatmap = pd.DataFrame()
+        
+        # Reconstruir municipio
+        municipio_cols = [col for col in df.columns if col.startswith('Municipio_')]
+        for col in municipio_cols:
+            municipio_name = col.replace('Municipio_', '')
+            mask = df[col] == 1
+            if mask.any():
+                temp_df = df[mask].copy()
+                temp_df['MUNICIPIO'] = municipio_name
+                df_heatmap = pd.concat([df_heatmap, temp_df])
+        
+        # Reconstruir estrato
+        estrato_cols = [col for col in df.columns if col.startswith('Estrato_')]
+        for col in estrato_cols:
+            estrato_num = col.replace('Estrato_', '')
+            mask = df[col] == 1
+            if mask.any():
+                df_heatmap.loc[mask, 'ESTRATO'] = int(estrato_num)
+    else:
+        df_heatmap = df_viz.copy()
+    
+    # Crear pivot table
+    consumo_municipio_estrato = df_heatmap.pivot_table(
         values='PROMEDIO CONSUMO ACUEDUCTO', 
         index='MUNICIPIO', 
         columns='ESTRATO', 
@@ -280,9 +264,39 @@ def generate_visualizations(df, output_path):
     plt.title('Consumo promedio por municipio y estrato')
     plt.xlabel('Estrato socioeconómico')
     plt.ylabel('Municipio')
-    plt.tight_layout()  # Ajustar layout para evitar recortes
+    plt.tight_layout()
     plt.savefig(os.path.join(output_path, 'mapa_calor_consumo.png'))
-    plt.close()  # Cerrar la figura para liberar memoria
+    plt.close()
+    
+    # 4. Distribución del consumo promedio
+    plt.figure(figsize=(10, 6))
+    sns.histplot(df['PROMEDIO CONSUMO ACUEDUCTO'], kde=True, bins=30)
+    plt.title('Distribución del consumo promedio de agua')
+    plt.xlabel('Consumo promedio (m³)')
+    plt.ylabel('Frecuencia')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.savefig(os.path.join(output_path, 'distribucion_consumo_promedio.png'))
+    plt.close()
+    
+    # 5. Comparación de consumo por municipio
+    plt.figure(figsize=(14, 8))
+    
+    # Agrupar por municipio y calcular promedio
+    consumo_por_municipio = df_heatmap.groupby('MUNICIPIO')['PROMEDIO CONSUMO ACUEDUCTO'].mean().sort_values(ascending=False)
+    
+    # Limitar a 15 municipios para mejor visualización
+    if len(consumo_por_municipio) > 15:
+        consumo_por_municipio = consumo_por_municipio.head(15)
+    
+    # Crear gráfico de barras
+    sns.barplot(x=consumo_por_municipio.values, y=consumo_por_municipio.index)
+    plt.title('Consumo promedio por municipio')
+    plt.xlabel('Consumo promedio (m³)')
+    plt.ylabel('Municipio')
+    plt.grid(True, axis='x', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_path, 'consumo_por_municipio.png'))
+    plt.close()
     
     print("Visualizaciones generadas en", output_path)
 
@@ -317,6 +331,9 @@ def main():
         
         # Limpiar datos
         df = clean_data(df)
+        
+        # Analizar balance de datos por municipio
+        df = analyze_municipality_balance(df)
         
         # Transformar datos
         df = transform_data(df)
