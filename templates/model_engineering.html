@@ -1,8 +1,398 @@
 {% extends "layout.html" %}
-{% block title %}Ingeniería de Datos{% endblock %}
+{% block title %}Ingeniería del Modelo{% endblock %}
 {% block content %}
-<div class="alert alert-info">
-    <h4 class="alert-heading">Fase en desarrollo</h4>
-    <p>Esta sección está actualmente en desarrollo y será implementada próximamente.</p>
+<h1>Ingeniería del Modelo</h1>
+<hr>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Proceso de Ingeniería del Modelo</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    En esta fase se seleccionan, entrenan y evalúan diferentes algoritmos de machine learning 
+                    para predecir el consumo promedio mensual de agua potable por suscriptor en diferentes municipios de Caldas
+                    segmentado por estrato socioeconómico, utilizando los datos procesados en la fase anterior.
+                </p>
+                
+                {% if not model_exists %}
+                <div class="alert alert-warning">
+                    <h4 class="alert-heading">Modelo no entrenado</h4>
+                    <p>El modelo aún no ha sido entrenado. Haga clic en el botón para iniciar el entrenamiento.</p>
+                    <button id="train-model-btn" class="btn btn-primary">Entrenar Modelo</button>
+                    <div id="training-status" class="mt-2" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Entrenando...</span>
+                        </div>
+                        <span class="ms-2">Entrenando modelo, por favor espere. Este proceso puede tomar varios minutos...</span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-success">
+                    <h4 class="alert-heading">Modelo entrenado correctamente</h4>
+                    <p>Los modelos han sido entrenados y están listos para realizar predicciones de consumo promedio mensual de agua por suscriptor.</p>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h4>Comparación de Modelos</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Modelo</th>
+                                        <th>RMSE (Validación)</th>
+                                        <th>MAE (Validación)</th>
+                                        <th>R² (Validación)</th>
+                                        <th>RMSE (Prueba)</th>
+                                        <th>MAE (Prueba)</th>
+                                        <th>R² (Prueba)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for model_name, metrics in model_info.all_models.items() %}
+                                    <tr {% if model_name == model_info.name %}class="table-primary"{% endif %}>
+                                        <td><strong>{{ model_name }}</strong> {% if model_name == model_info.name %}(Mejor){% endif %}</td>
+                                        <td>{{ "%.4f"|format(metrics.validation.rmse) }}</td>
+                                        <td>{{ "%.4f"|format(metrics.validation.mae) }}</td>
+                                        <td>{{ "%.4f"|format(metrics.validation.r2) }}</td>
+                                        <td>{{ "%.4f"|format(metrics.test.rmse) }}</td>
+                                        <td>{{ "%.4f"|format(metrics.test.mae) }}</td>
+                                        <td>{{ "%.4f"|format(metrics.test.r2) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <h5 class="mt-4">Mejor modelo: {{ model_info.name }}</h5>
+                        
+                        {% if model_info.params %}
+                        <div class="mt-3">
+                            <h5>Hiperparámetros optimizados</h5>
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Parámetro</th>
+                                        <th>Valor</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for param, value in model_info.params.items() %}
+                                    <tr>
+                                        <td>{{ param }}</td>
+                                        <td>{{ value }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Selección de Algoritmos</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    Para este problema de predicción del consumo promedio mensual de agua por suscriptor, se evaluaron varios algoritmos 
+                    de machine learning para determinar cuál se adapta mejor a los datos:
+                </p>
+                <ul>
+                    <li>
+                        <strong>Regresión Lineal:</strong> Modelo simple que asume una relación lineal entre las 
+                        variables predictoras y el consumo de agua. Sirve como línea base para comparar 
+                        con modelos más complejos.
+                    </li>
+                    <li>
+                        <strong>Random Forest Regressor:</strong> Conjunto de árboles de decisión que captura 
+                        relaciones no lineales y puede manejar variables categóricas y numéricas. Ofrece buena 
+                        interpretabilidad a través de la importancia de características.
+                    </li>
+                    <li>
+                        <strong>Gradient Boosting Regressor:</strong> Técnica de ensamblaje que construye árboles 
+                        de forma secuencial para corregir errores de árboles anteriores. Suele ofrecer alta 
+                        precisión a costa de mayor tiempo de entrenamiento.
+                    </li>
+                </ul>
+                <p>
+                    La selección del algoritmo óptimo se basa en la comparación de métricas de rendimiento 
+                    mediante validación cruzada, priorizando aquel que minimiza el error de predicción (RMSE)
+                    en la estimación del consumo promedio mensual de agua por suscriptor.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Entrenamiento</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    El proceso de entrenamiento implementado sigue las siguientes etapas:
+                </p>
+                <ol>
+                    <li>
+                        <strong>Preparación de datos:</strong> El conjunto de datos se divide en tres segmentos: 
+                        entrenamiento (60%), validación (20%) y prueba (20%), asegurando que el modelo sea evaluado 
+                        con datos que no ha visto durante el entrenamiento.
+                    </li>
+                    <li>
+                        <strong>Preprocesamiento:</strong> Se implementa un pipeline que realiza:
+                        <ul>
+                            <li>Estandarización de variables numéricas para nivelar escalas</li>
+                            <li>Codificación one-hot de variables categóricas (MUNICIPIO)</li>
+                        </ul>
+                    </li>
+                    <li>
+                        <strong>Entrenamiento de todos los modelos candidatos:</strong> Cada algoritmo se entrena con 
+                        validación cruzada (5 folds) para una estimación robusta del rendimiento.
+                    </li>
+                    <li>
+                        <strong>Selección del mejor modelo:</strong> Se elige el algoritmo con menor error 
+                        cuadrático medio (RMSE) en la validación cruzada.
+                    </li>
+                </ol>
+                <p>
+                    Este enfoque sistemático asegura que todos los modelos sean evaluados justamente y permite
+                    identificar el que mejor se adapta a los patrones de consumo promedio de agua por suscriptor
+                    en diferentes contextos socioeconómicos y geográficos de Caldas.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Ajuste de Hiperparámetros</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    Una vez seleccionado el mejor algoritmo, se realiza un ajuste fino de sus hiperparámetros 
+                    para optimizar su rendimiento:
+                </p>
+                <ul>
+                    <li>
+                        <strong>GridSearchCV:</strong> Se utiliza búsqueda en rejilla para explorar sistemáticamente 
+                        diferentes combinaciones de hiperparámetros, evaluando cada configuración mediante 
+                        validación cruzada.
+                    </li>
+                    <li>
+                        <strong>Parámetros optimizados:</strong> Dependiendo del algoritmo seleccionado, se ajustan 
+                        parámetros específicos:
+                        <ul>
+                            <li><strong>Random Forest:</strong> Número de árboles, profundidad máxima, muestras mínimas para división, etc.</li>
+                            <li><strong>Gradient Boosting:</strong> Tasa de aprendizaje, profundidad, número de estimadores, etc.</li>
+                        </ul>
+                    </li>
+                    <li>
+                        <strong>Métrica de optimización:</strong> Se minimiza el error cuadrático medio (RMSE) para 
+                        seleccionar la configuración óptima.
+                    </li>
+                </ul>
+                <p>
+                    Este proceso de optimización permite extraer el máximo rendimiento del algoritmo seleccionado, 
+                    adaptándolo específicamente a las características del problema de predicción de consumo promedio de agua
+                    en los diferentes contextos socioeconómicos de Caldas.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Validación</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    La evaluación de todos los modelos se realiza de manera rigurosa utilizando:
+                </p>
+                <ul>
+                    <li>
+                        <strong>Conjunto de validación:</strong> Se verifica el rendimiento de cada modelo en datos que no fueron 
+                        utilizados durante el entrenamiento inicial para detectar posible sobreajuste.
+                    </li>
+                    <li>
+                        <strong>Conjunto de prueba:</strong> Se evalúa finalmente cada modelo con datos completamente separados 
+                        desde el inicio del proceso para obtener una estimación insesgada del rendimiento real.
+                    </li>
+                    <li>
+                        <strong>Métricas de evaluación:</strong>
+                        <ul>
+                            <li><strong>RMSE (Root Mean Squared Error):</strong> Mide la magnitud del error de predicción en metros cúbicos por suscriptor (m³), penalizando errores grandes.</li>
+                            <li><strong>MAE (Mean Absolute Error):</strong> Proporciona una medida más robusta de error promedio en las mismas unidades que la variable objetivo (m³).</li>
+                            <li><strong>R² (Coeficiente de determinación):</strong> Indica la proporción de varianza en el consumo promedio que es explicada por el modelo.</li>
+                        </ul>
+                    </li>
+                </ul>
+                <p>
+                    Este enfoque multi-métrica y comparativo proporciona una visión completa del rendimiento de todos los modelos, 
+                    permitiendo identificar no solo cuál es el mejor en términos absolutos, sino también comprender las 
+                    fortalezas y debilidades relativas de cada enfoque para la predicción del consumo promedio de agua.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if model_visualizations_exist %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Visualizaciones del Modelo</h3>
+            </div>
+            <div class="card-body">
+                <p class="mb-4">
+                    Las siguientes visualizaciones permiten comparar el rendimiento de los diferentes modelos
+                    y comprender los factores más influyentes en la predicción del consumo promedio de agua:
+                </p>
+                
+                <div class="row">
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Comparación de modelos: Valores reales vs. Predicciones</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="{{ url_for('static', filename='img/model_viz/comparacion_modelos_predicciones.png') }}" class="img-fluid" alt="Comparación de modelos">
+                            </div>
+                            <div class="card-footer">
+                                <p class="text-muted">
+                                    Comparación entre los valores reales de consumo promedio y las predicciones de los distintos modelos.
+                                    Los puntos más cercanos a la línea diagonal representan predicciones más precisas. Cada color
+                                    corresponde a un algoritmo diferente.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Distribución de residuos por modelo</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="{{ url_for('static', filename='img/model_viz/distribucion_residuos_comparativo.png') }}" class="img-fluid" alt="Distribución de residuos comparativo">
+                            </div>
+                            <div class="card-footer">
+                                <p class="text-muted">
+                                    Histogramas de los residuos (diferencia entre valores reales y predicciones en m³) para cada modelo.
+                                    Una distribución centrada en cero y simétrica indica un modelo bien calibrado,
+                                    sin sesgo sistemático en la estimación del consumo promedio de agua.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Comparación de métricas entre modelos</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="{{ url_for('static', filename='img/model_viz/comparacion_metricas.png') }}" class="img-fluid" alt="Comparación de métricas">
+                            </div>
+                            <div class="card-footer">
+                                <p class="text-muted">
+                                    Este gráfico compara las métricas de rendimiento (RMSE, MAE y R²) de los distintos modelos.
+                                    Permite identificar rápidamente qué algoritmo ofrece el mejor equilibrio entre las diferentes
+                                    métricas de evaluación.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if model_info.name in ['RandomForest', 'GradientBoosting'] %}
+                <div class="row">
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Importancia de características - {{ model_info.name }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="{{ url_for('static', filename='img/model_viz/importancia_caracteristicas_' + model_info.name + '.png') }}" class="img-fluid" alt="Importancia de características">
+                            </div>
+                            <div class="card-footer">
+                                <p class="text-muted">
+                                    Este gráfico muestra las variables con mayor influencia en las predicciones del mejor modelo.
+                                    Permite identificar los factores clave que determinan el consumo promedio de agua en diferentes
+                                    contextos, proporcionando insights valiosos para la gestión del recurso hídrico en Caldas.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Verificar si el botón existe
+    const trainButton = document.getElementById('train-model-btn');
+    if (trainButton) {
+        console.log('Botón de entrenamiento encontrado');
+        
+        trainButton.addEventListener('click', function() {
+            console.log('Botón de entrenamiento clickeado');
+            this.disabled = true;
+            document.getElementById('training-status').style.display = 'block';
+            
+            fetch('/train-model')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Modelo entrenado correctamente. La página se recargará para mostrar los resultados.');
+                        location.reload();
+                    } else {
+                        alert('Error al entrenar el modelo: ' + data.message);
+                        trainButton.disabled = false;
+                        document.getElementById('training-status').style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    alert('Error en la solicitud: ' + error);
+                    trainButton.disabled = false;
+                    document.getElementById('training-status').style.display = 'none';
+                });
+        });
+    } else {
+        console.log('Botón de entrenamiento NO encontrado');
+    }
+});
+</script>
+{% endblock %}
 {% endblock %}

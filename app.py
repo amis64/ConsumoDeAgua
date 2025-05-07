@@ -2,7 +2,10 @@ from flask import Flask, render_template, jsonify
 import pandas as pd
 import os
 import matplotlib
+import joblib
+import json
 matplotlib.use('Agg')  # Configuración para usar matplotlib sin interfaz gráfica
+
 
 app = Flask(__name__)
 
@@ -45,7 +48,56 @@ def data_engineering():
 
 @app.route('/ingenieria-modelo')
 def model_engineering():
-    return render_template('model_engineering.html')
+    # Verificar si existe el modelo entrenado
+    model_exists = os.path.exists('static/data/models/best_model.pkl')
+    model_visualizations_exist = os.path.exists('static/img/model_viz')
+    
+    # Obtener información del modelo si existe
+    model_info = {}
+    if model_exists and os.path.exists('static/data/models/model_info.pkl'):
+        try:
+            model_info = joblib.load('static/data/models/model_info.pkl')
+        except Exception as e:
+            model_info = {'error': str(e)}
+    
+    return render_template(
+        'model_engineering.html',
+        model_exists=model_exists,
+        model_visualizations_exist=model_visualizations_exist,
+        model_info=model_info
+    )
+
+# Añadir ruta para ejecutar el proceso de modelado
+@app.route('/train-model')
+def train_model():
+    try:
+        from model_engineering import main
+        result = main()
+        return jsonify({'success': result, 'message': 'Modelo entrenado correctamente' if result else 'Error al entrenar el modelo'})
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        return jsonify({'success': False, 'message': str(e), 'details': error_details})
+
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        # Cargar el modelo
+        model = joblib.load('static/data/models/best_model.pkl')
+        
+        # Obtener datos de la solicitud
+        data = json.request.get_json()
+        
+        # Preparar los datos para la predicción
+        # (Esto dependerá de cómo se estructuren los datos de entrada)
+        
+        # Realizar predicción
+        # prediction = model.predict([input_data])[0]
+        
+        return jsonify({'success': True, 'prediction': 'Implementación pendiente'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/process-data')
 def process_data():
