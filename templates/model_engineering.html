@@ -114,13 +114,13 @@
                 <ul>
                     <li>
                         <strong>Regresión Lineal:</strong> Modelo simple que asume una relación lineal entre las 
-                        variables predictoras y el consumo de agua. Sirve como línea base para comparar 
+                        variables predictoras y el consumo promedio de agua. Sirve como línea base para comparar 
                         con modelos más complejos.
                     </li>
                     <li>
                         <strong>Random Forest Regressor:</strong> Conjunto de árboles de decisión que captura 
-                        relaciones no lineales y puede manejar variables categóricas y numéricas. Ofrece buena 
-                        interpretabilidad a través de la importancia de características.
+                        relaciones no lineales y puede manejar variables categóricas codificadas como one-hot.
+                        Ofrece buena interpretabilidad a través de la importancia de características.
                     </li>
                     <li>
                         <strong>Gradient Boosting Regressor:</strong> Técnica de ensamblaje que construye árboles 
@@ -157,8 +157,8 @@
                     <li>
                         <strong>Preprocesamiento:</strong> Se implementa un pipeline que realiza:
                         <ul>
-                            <li>Estandarización de variables numéricas para nivelar escalas</li>
-                            <li>Codificación one-hot de variables categóricas (MUNICIPIO)</li>
+                            <li>Estandarización de variables numéricas (MES_NUM) para nivelar escalas</li>
+                            <li>Uso directo de variables categóricas ya transformadas mediante one-hot encoding (MUNICIPIO y ESTRATO)</li>
                         </ul>
                     </li>
                     <li>
@@ -331,6 +331,26 @@
                     </div>
                 </div>
                 
+                <div class="row">
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Predicciones del mejor modelo</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="{{ url_for('static', filename='img/model_viz/mejor_modelo_predicciones.png') }}" class="img-fluid" alt="Mejor modelo predicciones">
+                            </div>
+                            <div class="card-footer">
+                                <p class="text-muted">
+                                    Gráfico de dispersión que muestra las predicciones del mejor modelo en comparación
+                                    con los valores reales de consumo promedio. Los puntos cercanos a la línea roja punteada
+                                    representan predicciones más precisas.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 {% if model_info.name in ['RandomForest', 'GradientBoosting'] %}
                 <div class="row">
                     <div class="col-md-12 mb-4">
@@ -344,8 +364,8 @@
                             <div class="card-footer">
                                 <p class="text-muted">
                                     Este gráfico muestra las variables con mayor influencia en las predicciones del mejor modelo.
-                                    Permite identificar los factores clave que determinan el consumo promedio de agua en diferentes
-                                    contextos, proporcionando insights valiosos para la gestión del recurso hídrico en Caldas.
+                                    Permite identificar qué características (mes, municipio, estrato) tienen mayor impacto en el 
+                                    consumo promedio de agua, proporcionando insights valiosos para la gestión del recurso hídrico.
                                 </p>
                             </div>
                         </div>

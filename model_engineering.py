@@ -4,9 +4,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 import joblib
-from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.compose import ColumnTransformer
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score, KFold
+from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
@@ -30,18 +29,31 @@ def prepare_features_target(df):
     """
     Prepara las características (features) y la variable objetivo (target)
     """
-    # Definimos las características a usar
-    features = ['AÑO', 'MES_NUM', 'MUNICIPIO', 'ESTRATO', 'No. SUSCRIPTORES ACUEDUCTO']
-    
     # Variable objetivo: consumo promedio de agua por suscriptor
     target = 'PROMEDIO CONSUMO ACUEDUCTO'
+    
+    # Excluir cualquier columna de texto (como 'MES') y usar solo columnas numéricas
+    # o columnas dummy que ya estén convertidas
+    if 'MES' in df.columns:
+        df = df.drop('MES', axis=1)
+    
+    # Definimos las características a usar: todas las columnas excepto la variable objetivo
+    features = [col for col in df.columns if col != target]
+    
+    # Verificamos que las columnas dummy estén presentes
+    estrato_cols = [col for col in features if col.startswith('Estrato_')]
+    municipio_cols = [col for col in features if col.startswith('Municipio_')]
+    mes_cols = [col for col in features if col == 'MES_NUM']
+    
+    print(f"Variable objetivo: {target}")
+    print(f"Encontradas {len(estrato_cols)} columnas de estrato")
+    print(f"Encontradas {len(municipio_cols)} columnas de municipio")
+    print(f"Encontradas {len(mes_cols)} columnas de mes")
+    print(f"Total de características: {len(features)}")
     
     # Separamos características y objetivo
     X = df[features]
     y = df[target]
-    
-    print(f"Features utilizados: {features}")
-    print(f"Variable objetivo: {target}")
     
     return X, y, features
 
@@ -65,36 +77,25 @@ def split_data(X, y):
     
     return X_train, X_val, X_test, y_train, y_val, y_test
 
-def create_preprocessing_pipeline(features):
+def create_preprocessing_pipeline():
     """
     Crea un pipeline de preprocesamiento para los datos
     """
-    # Identificar tipos de columnas
-    categorical_features = ['MUNICIPIO']
-    numerical_features = [col for col in features if col not in categorical_features]
-    
-    # Transformadores para cada tipo de columna
-    categorical_transformer = Pipeline(steps=[
-        ('onehot', OneHotEncoder(handle_unknown='ignore'))
-    ])
-    
-    numerical_transformer = Pipeline(steps=[
-        ('scaler', StandardScaler())
-    ])
-    
-    # Combinar transformadores en un ColumnTransformer
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', numerical_transformer, numerical_features),
-            ('cat', categorical_transformer, categorical_features)
-        ])
-    
-    return preprocessor
+    # Solo estandarizamos la variable MES_NUM, las variables one-hot las dejamos como están
+    # Como estamos seleccionando las variables específicamente, no necesitamos un ColumnTransformer
+    # y podemos usar directamente el StandardScaler
+    return StandardScaler()
 
 def train_models(X_train, y_train, preprocessor):
     """
     Entrena varios modelos y compara sus resultados
     """
+    # Seleccionar solo la columna MES_NUM para estandarización
+    X_mes_num = X_train[['MES_NUM']] if 'MES_NUM' in X_train.columns else pd.DataFrame()
+    
+    # Obtener columnas one-hot
+    X_dummies = X_train.drop('MES_NUM', axis=1) if 'MES_NUM' in X_train.columns else X_train
+    
     # Definir los modelos a evaluar
     models = {
         'LinearRegression': LinearRegression(),
@@ -102,80 +103,96 @@ def train_models(X_train, y_train, preprocessor):
         'GradientBoosting': GradientBoostingRegressor(random_state=42)
     }
     
-    # Evaluar cada modelo con validación cruzada
+    # Evaluar cada modelo manualmente
     results = {}
     for name, model in models.items():
-        # Crear pipeline con preprocesamiento y modelo
-        pipeline = Pipeline(steps=[
-            ('preprocessor', preprocessor),
-            ('model', model)
-        ])
-        
-        # Evaluar con validación cruzada
-        cv_scores = cross_val_score(
-            pipeline, X_train, y_train, 
-            cv=5, scoring='neg_mean_squared_error'
-        )
-        
-        # Convertir a RMSE y almacenar resultados
-        rmse_scores = np.sqrt(-cv_scores)
-        results[name] = {
-            'mean_rmse': rmse_scores.mean(),
-            'std_rmse': rmse_scores.std(),
-            'pipeline': pipeline
-        }
-        
-        print(f"{name} - RMSE medio: {rmse_scores.mean():.4f}, Desv. Estándar: {rmse_scores.std():.4f}")
+        print(f"Entrenando modelo: {name}")
+        try:
+            # Estandarizar solo MES_NUM si existe
+            if not X_mes_num.empty:
+                X_mes_scaled = preprocessor.fit_transform(X_mes_num)
+                # Convertir a DataFrame para preservar el nombre de columna
+                X_mes_scaled_df = pd.DataFrame(X_mes_scaled, index=X_mes_num.index, columns=['MES_NUM'])
+                # Concatenar con las variables one-hot
+                X_processed = pd.concat([X_mes_scaled_df, X_dummies], axis=1)
+            else:
+                # Si no hay MES_NUM, usar directamente las variables one-hot
+                X_processed = X_dummies
+            
+            # Crear y entrenar modelo
+            model.fit(X_processed, y_train)
+            
+            # Validación cruzada manual para evitar problemas con pipeline
+            kf = KFold(n_splits=5, shuffle=True, random_state=42)
+            cv_scores = []
+            
+            for train_idx, val_idx in kf.split(X_processed):
+                X_train_cv, X_val_cv = X_processed.iloc[train_idx], X_processed.iloc[val_idx]
+                y_train_cv, y_val_cv = y_train.iloc[train_idx], y_train.iloc[val_idx]
+                
+                model_cv = models[name].__class__(**models[name].get_params())
+                model_cv.fit(X_train_cv, y_train_cv)
+                y_pred_cv = model_cv.predict(X_val_cv)
+                
+                mse = mean_squared_error(y_val_cv, y_pred_cv)
+                cv_scores.append(-mse)  # Negativo para que sea consistente con sklearn
+            
+            # Convertir a RMSE
+            rmse_scores = np.sqrt(-np.array(cv_scores))
+            results[name] = {
+                'mean_rmse': rmse_scores.mean(),
+                'std_rmse': rmse_scores.std(),
+                'model': model,
+                'X_processed': X_processed  # Guardar X procesado para futuros pasos
+            }
+            
+            print(f"{name} - RMSE medio: {rmse_scores.mean():.4f}, Desv. Estándar: {rmse_scores.std():.4f}")
+        except Exception as e:
+            print(f"Error al entrenar {name}: {str(e)}")
     
     # Identificar el mejor modelo
-    best_model = min(results.items(), key=lambda x: x[1]['mean_rmse'])
-    print(f"Mejor modelo: {best_model[0]} con RMSE: {best_model[1]['mean_rmse']:.4f}")
-    
-    return results, best_model[0]
+    if results:
+        best_model = min(results.items(), key=lambda x: x[1]['mean_rmse'])
+        print(f"Mejor modelo: {best_model[0]} con RMSE: {best_model[1]['mean_rmse']:.4f}")
+        return results, best_model[0]
+    else:
+        raise ValueError("No se pudo entrenar ningún modelo correctamente")
 
 def tune_hyperparameters(model_name, X_train, y_train, preprocessor, results):
     """
     Realiza ajuste de hiperparámetros para un modelo específico
     """
+    # Usar X procesado
+    X_processed = results[model_name]['X_processed']
+    
     # Definir parámetros de búsqueda según el tipo de modelo
     if model_name == 'RandomForest':
         model = RandomForestRegressor(random_state=42)
         param_grid = {
-            'model__n_estimators': [50, 100, 200],
-            'model__max_depth': [None, 10, 20, 30],
-            'model__min_samples_split': [2, 5, 10],
-            'model__min_samples_leaf': [1, 2, 4]
+            'n_estimators': [50, 100, 200],
+            'max_depth': [None, 10, 20, 30],
+            'min_samples_split': [2, 5, 10],
+            'min_samples_leaf': [1, 2, 4]
         }
     elif model_name == 'GradientBoosting':
         model = GradientBoostingRegressor(random_state=42)
         param_grid = {
-            'model__n_estimators': [50, 100, 200],
-            'model__learning_rate': [0.01, 0.1, 0.2],
-            'model__max_depth': [3, 5, 7],
-            'model__min_samples_split': [2, 5, 10]
+            'n_estimators': [50, 100, 200],
+            'learning_rate': [0.01, 0.1, 0.2],
+            'max_depth': [3, 5, 7],
+            'min_samples_split': [2, 5, 10]
         }
     else:  # LinearRegression no tiene hiperparámetros para ajustar
         print("El modelo de regresión lineal no tiene hiperparámetros que ajustar.")
-        pipeline = Pipeline(steps=[
-            ('preprocessor', preprocessor),
-            ('model', LinearRegression())
-        ])
-        pipeline.fit(X_train, y_train)
-        return pipeline, {}
+        return results[model_name]['model'], {}
     
-    # Crear pipeline
-    pipeline = Pipeline(steps=[
-        ('preprocessor', preprocessor),
-        ('model', model)
-    ])
-    
-    # Realizar búsqueda de hiperparámetros
+    # Realizar búsqueda de hiperparámetros directamente sin pipeline
     print(f"Iniciando ajuste de hiperparámetros para {model_name}...")
     grid_search = GridSearchCV(
-        pipeline, param_grid, cv=5, 
+        model, param_grid, cv=5, 
         scoring='neg_mean_squared_error', n_jobs=-1
     )
-    grid_search.fit(X_train, y_train)
+    grid_search.fit(X_processed, y_train)
     
     # Mostrar mejores parámetros
     print(f"Mejores parámetros: {grid_search.best_params_}")
@@ -183,12 +200,38 @@ def tune_hyperparameters(model_name, X_train, y_train, preprocessor, results):
     
     return grid_search.best_estimator_, grid_search.best_params_
 
-def evaluate_model(model, X_val, y_val, X_test, y_test):
+def process_features(X, preprocessor, model_name, results):
+    """
+    Procesa las características de la misma manera que durante el entrenamiento
+    """
+    # Seleccionar solo la columna MES_NUM para estandarización
+    X_mes_num = X[['MES_NUM']] if 'MES_NUM' in X.columns else pd.DataFrame()
+    
+    # Obtener columnas one-hot
+    X_dummies = X.drop('MES_NUM', axis=1) if 'MES_NUM' in X.columns else X
+    
+    # Estandarizar solo MES_NUM si existe
+    if not X_mes_num.empty:
+        X_mes_scaled = preprocessor.transform(X_mes_num)
+        # Convertir a DataFrame para preservar el nombre de columna
+        X_mes_scaled_df = pd.DataFrame(X_mes_scaled, index=X_mes_num.index, columns=['MES_NUM'])
+        # Concatenar con las variables one-hot
+        X_processed = pd.concat([X_mes_scaled_df, X_dummies], axis=1)
+    else:
+        # Si no hay MES_NUM, usar directamente las variables one-hot
+        X_processed = X_dummies
+    
+    return X_processed
+
+def evaluate_model(model, X_val, y_val, X_test, y_test, preprocessor, model_name, results):
     """
     Evalúa el modelo en los conjuntos de validación y prueba
     """
+    # Procesar datos de validación
+    X_val_processed = process_features(X_val, preprocessor, model_name, results)
+    
     # Evaluar en conjunto de validación
-    y_val_pred = model.predict(X_val)
+    y_val_pred = model.predict(X_val_processed)
     val_rmse = np.sqrt(mean_squared_error(y_val, y_val_pred))
     val_mae = mean_absolute_error(y_val, y_val_pred)
     val_r2 = r2_score(y_val, y_val_pred)
@@ -198,8 +241,11 @@ def evaluate_model(model, X_val, y_val, X_test, y_test):
     print(f"MAE: {val_mae:.4f}")
     print(f"R²: {val_r2:.4f}")
     
+    # Procesar datos de prueba
+    X_test_processed = process_features(X_test, preprocessor, model_name, results)
+    
     # Evaluar en conjunto de prueba
-    y_test_pred = model.predict(X_test)
+    y_test_pred = model.predict(X_test_processed)
     test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
     test_mae = mean_absolute_error(y_test, y_test_pred)
     test_r2 = r2_score(y_test, y_test_pred)
@@ -225,7 +271,7 @@ def evaluate_model(model, X_val, y_val, X_test, y_test):
     
     return metrics, y_test, y_test_pred
 
-def evaluate_all_models(model_results, X_val, y_val, X_test, y_test, X_train, y_train):
+def evaluate_all_models(model_results, X_val, y_val, X_test, y_test, X_train, y_train, preprocessor):
     """
     Evalúa todos los modelos entrenados en los conjuntos de validación y prueba
     """
@@ -233,46 +279,52 @@ def evaluate_all_models(model_results, X_val, y_val, X_test, y_test, X_train, y_
     all_models_predictions = {}
     
     for name, model_data in model_results.items():
-        pipeline = model_data['pipeline']
+        model = model_data['model']
         
-        # Entrenar el modelo con los datos de entrenamiento
-        pipeline.fit(X_train, y_train)
-        
-        # Evaluar en conjunto de validación
-        y_val_pred = pipeline.predict(X_val)
-        val_rmse = np.sqrt(mean_squared_error(y_val, y_val_pred))
-        val_mae = mean_absolute_error(y_val, y_val_pred)
-        val_r2 = r2_score(y_val, y_val_pred)
-        
-        # Evaluar en conjunto de prueba
-        y_test_pred = pipeline.predict(X_test)
-        test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
-        test_mae = mean_absolute_error(y_test, y_test_pred)
-        test_r2 = r2_score(y_test, y_test_pred)
-        
-        # Guardar métricas
-        all_models_metrics[name] = {
-            'validation': {
-                'rmse': val_rmse,
-                'mae': val_mae,
-                'r2': val_r2
-            },
-            'test': {
-                'rmse': test_rmse,
-                'mae': test_mae,
-                'r2': test_r2
+        try:
+            # Procesar datos de validación
+            X_val_processed = process_features(X_val, preprocessor, name, model_results)
+            
+            # Evaluar en conjunto de validación
+            y_val_pred = model.predict(X_val_processed)
+            val_rmse = np.sqrt(mean_squared_error(y_val, y_val_pred))
+            val_mae = mean_absolute_error(y_val, y_val_pred)
+            val_r2 = r2_score(y_val, y_val_pred)
+            
+            # Procesar datos de prueba
+            X_test_processed = process_features(X_test, preprocessor, name, model_results)
+            
+            # Evaluar en conjunto de prueba
+            y_test_pred = model.predict(X_test_processed)
+            test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
+            test_mae = mean_absolute_error(y_test, y_test_pred)
+            test_r2 = r2_score(y_test, y_test_pred)
+            
+            # Guardar métricas
+            all_models_metrics[name] = {
+                'validation': {
+                    'rmse': val_rmse,
+                    'mae': val_mae,
+                    'r2': val_r2
+                },
+                'test': {
+                    'rmse': test_rmse,
+                    'mae': test_mae,
+                    'r2': test_r2
+                }
             }
-        }
-        
-        # Guardar predicciones
-        all_models_predictions[name] = {
-            'y_test': y_test,
-            'y_pred': y_test_pred
-        }
-        
-        print(f"\nMétricas para {name}:")
-        print(f"Validación - RMSE: {val_rmse:.4f}, MAE: {val_mae:.4f}, R²: {val_r2:.4f}")
-        print(f"Prueba - RMSE: {test_rmse:.4f}, MAE: {test_mae:.4f}, R²: {test_r2:.4f}")
+            
+            # Guardar predicciones
+            all_models_predictions[name] = {
+                'y_test': y_test,
+                'y_pred': y_test_pred
+            }
+            
+            print(f"\nMétricas para {name}:")
+            print(f"Validación - RMSE: {val_rmse:.4f}, MAE: {val_mae:.4f}, R²: {val_r2:.4f}")
+            print(f"Prueba - RMSE: {test_rmse:.4f}, MAE: {test_mae:.4f}, R²: {test_r2:.4f}")
+        except Exception as e:
+            print(f"Error al evaluar {name}: {str(e)}")
     
     return all_models_metrics, all_models_predictions
 
@@ -281,141 +333,157 @@ def generate_model_visualizations(models_predictions, features, models, output_p
     Genera visualizaciones para evaluar todos los modelos
     """
     os.makedirs(output_path, exist_ok=True)
-    
+
     # Paleta de colores para distinguir los modelos
     model_colors = {
         'LinearRegression': 'blue',
         'RandomForest': 'green',
         'GradientBoosting': 'red'
     }
-    
-    # 1. Gráfico comparativo de predicciones vs valores reales para todos los modelos
+
+    # ———– SANITY CHECK: asegurar que y_test es el consumo promedio ———–
+    for model_name, pred in models_predictions.items():
+        yt = pred['y_test']
+        print(f"[SANITY] {model_name} y_test  min={yt.min():.2f}, max={yt.max():.2f}")
+        if yt.max() > 200:   # ajusta 200 al rango máximo real de tu dataset
+            print(f"⚠️ Atención: y_test para {model_name} supera 200. ¿Estás usando PROMEDIO CONSUMO ACUEDUCTO?")
+
+    # ———– 1. Comparación de predicciones vs valores reales ———–
     plt.figure(figsize=(12, 8))
-    
-    for model_name, predictions in models_predictions.items():
-        y_test = predictions['y_test']
-        y_pred = predictions['y_pred']
-        
-        plt.scatter(y_test, y_pred, alpha=0.5, 
-                   label=model_name, 
-                   color=model_colors.get(model_name, 'gray'))
-    
+    for model_name, pred in models_predictions.items():
+        y_test = pred['y_test']
+        y_pred = pred['y_pred']
+        plt.scatter(
+            y_test,
+            y_pred,
+            alpha=0.5,
+            label=model_name,
+            color=model_colors.get(model_name, 'gray')
+        )
+
+    # Definir límites del gráfico usando sólo y_test
+    min_val = min(pred['y_test'].min() for pred in models_predictions.values())
+    max_val = max(pred['y_test'].max() for pred in models_predictions.values())
+    delta   = (max_val - min_val) * 0.10  # 10% de margen
+    min_plot = max(0, min_val - delta)
+    max_plot = max_val + delta
+
     # Línea de predicción perfecta
-    max_val = max([max(pred['y_test'].max(), pred['y_pred'].max()) for pred in models_predictions.values()])
-    min_val = min([min(pred['y_test'].min(), pred['y_pred'].min()) for pred in models_predictions.values()])
-    
-    plt.plot([min_val, max_val], [min_val, max_val], 'k--')
-    
+    plt.plot([min_plot, max_plot], [min_plot, max_plot], 'k--', linewidth=1.5)
+
+    plt.xlim(min_plot, max_plot)
+    plt.ylim(min_plot, max_plot)
     plt.title('Comparación de modelos: Valores reales vs. Predicciones de consumo promedio (m³)')
     plt.xlabel('Consumo promedio real (m³)')
     plt.ylabel('Consumo promedio predicho (m³)')
     plt.legend()
     plt.savefig(os.path.join(output_path, 'comparacion_modelos_predicciones.png'))
     plt.close()
-    
-    # 2. Histograma de residuos para cada modelo
+
+    # ———– 2. Histograma de residuos para cada modelo ———–
     plt.figure(figsize=(15, 10))
-    
-    for i, (model_name, predictions) in enumerate(models_predictions.items()):
+    for i, (model_name, pred) in enumerate(models_predictions.items()):
         plt.subplot(2, 2, i+1)
-        residuos = predictions['y_test'] - predictions['y_pred']
+        residuos = pred['y_test'] - pred['y_pred']
         plt.hist(residuos, bins=30, alpha=0.7, color=model_colors.get(model_name, 'gray'))
         plt.axvline(0, color='red', linestyle='--')
         plt.title(f'Distribución de residuos - {model_name}')
         plt.xlabel('Residuo (real - predicción) en m³')
         plt.ylabel('Frecuencia')
-    
     plt.tight_layout()
     plt.savefig(os.path.join(output_path, 'distribucion_residuos_comparativo.png'))
     plt.close()
-    
-    # 3. Gráfico de importancia de características para modelos que lo permiten
+
+    # ———– 3. Importancia de características ———–
     for model_name, model in models.items():
-        if hasattr(model, 'named_steps') and hasattr(model.named_steps.get('model', None), 'feature_importances_'):
+        if hasattr(model, 'feature_importances_'):
             try:
-                # Para modelos basados en árboles con feature_importances_
-                
-                # Obtener el preprocesador
-                preprocessor = model.named_steps['preprocessor']
-                
-                # Obtener los nombres de las características después de la transformación
-                categorical_features = ['MUNICIPIO']
-                numerical_features = [col for col in features if col not in categorical_features]
-                
-                # Para características numéricas, mantener nombres originales
-                feature_names = numerical_features.copy()
-                
-                # Para características categóricas, tratar de reconstruir nombres
-                if hasattr(preprocessor, 'transformers_'):
-                    for name, transformer, cols in preprocessor.transformers_:
-                        if name == 'cat':
-                            if hasattr(transformer, 'named_steps') and 'onehot' in transformer.named_steps:
-                                onehot = transformer.named_steps['onehot']
-                                if hasattr(onehot, 'get_feature_names_out'):
-                                    cat_features = onehot.get_feature_names_out(cols)
-                                    feature_names.extend(cat_features)
-                
-                # Si hay desajuste en las dimensiones, usar nombres genéricos
-                importances = model.named_steps['model'].feature_importances_
-                if len(importances) != len(feature_names):
-                    feature_names = [f'Feature {i}' for i in range(len(importances))]
-                
-                feature_importance = pd.DataFrame({'feature': feature_names, 'importance': importances})
-                feature_importance = feature_importance.sort_values('importance', ascending=False)
-                
-                # Graficar importancias
-                plt.figure(figsize=(12, 8))
-                sns.barplot(x='importance', y='feature', data=feature_importance.head(15))
-                plt.title(f'Importancia de características en la predicción del consumo promedio - {model_name}')
+                importances    = model.feature_importances_
+                feature_names  = features
+                fi_df = pd.DataFrame({
+                    'feature': feature_names,
+                    'importance': importances
+                }).sort_values('importance', ascending=False).head(20)
+
+                plt.figure(figsize=(12, 10))
+                sns.barplot(x='importance', y='feature', data=fi_df)
+                plt.title(f'Importancia de características - {model_name}')
                 plt.tight_layout()
-                plt.savefig(os.path.join(output_path, f'importancia_caracteristicas_{model_name}.png'))
+                plt.savefig(os.path.join(
+                    output_path,
+                    f'importancia_caracteristicas_{model_name}.png'
+                ))
                 plt.close()
             except Exception as e:
-                print(f"Error al generar visualización de importancia para {model_name}: {e}")
-    
-    # 4. Comparación de métricas entre modelos
-    plt.figure(figsize=(12, 6))
-    
-    # Preparar datos para gráfico de barras
+                print(f"Error al graficar importancias para {model_name}: {e}")
+
+    # ———– 4. Comparación de métricas entre modelos ———–
     model_names = list(models_predictions.keys())
-    rmse_test = [all_models_metrics[name]['test']['rmse'] for name in model_names]
-    mae_test = [all_models_metrics[name]['test']['mae'] for name in model_names]
-    r2_test = [all_models_metrics[name]['test']['r2'] for name in model_names]
-    
-    # Crear gráfico de barras para RMSE y MAE
-    x = np.arange(len(model_names))
+    rmse_test   = [all_models_metrics[m]['test']['rmse'] for m in model_names]
+    mae_test    = [all_models_metrics[m]['test']['mae']  for m in model_names]
+    r2_test     = [all_models_metrics[m]['test']['r2']   for m in model_names]
+
+    x     = np.arange(len(model_names))
     width = 0.35
-    
+
     fig, ax1 = plt.subplots(figsize=(12, 6))
     ax1.bar(x - width/2, rmse_test, width, label='RMSE', color='darkblue')
-    ax1.bar(x + width/2, mae_test, width, label='MAE', color='lightblue')
+    ax1.bar(x + width/2, mae_test,  width, label='MAE',  color='lightblue')
     ax1.set_xlabel('Modelo')
     ax1.set_ylabel('Error (m³)')
     ax1.set_title('Comparación de métricas de error entre modelos')
     ax1.set_xticks(x)
     ax1.set_xticklabels(model_names)
     ax1.legend(loc='upper left')
-    
-    # Añadir R² en eje secundario
+
     ax2 = ax1.twinx()
     ax2.plot(x, r2_test, 'ro-', linewidth=2, label='R²')
     ax2.set_ylabel('R²')
     ax2.legend(loc='upper right')
-    
+
     plt.tight_layout()
     plt.savefig(os.path.join(output_path, 'comparacion_metricas.png'))
     plt.close()
-    
+
+    # ———– 5. Dispersión del mejor modelo ———–
+    best_model_name = max(
+        all_models_metrics.items(),
+        key=lambda x: x[1]['test']['r2']
+    )[0]
+    best_pred = models_predictions[best_model_name]
+    y_test_b  = best_pred['y_test']
+    y_pred_b  = best_pred['y_pred']
+
+    plt.figure(figsize=(10, 8))
+    plt.scatter(y_test_b, y_pred_b, alpha=0.6, edgecolor='k', color='blue')
+
+    # misma línea perfecta y mismos límites de eje
+    plt.plot([min_plot, max_plot], [min_plot, max_plot], 'r--', linewidth=1.5)
+    plt.xlim(min_plot, max_plot)
+    plt.ylim(min_plot, max_plot)
+
+    plt.title(f'Predicciones del mejor modelo ({best_model_name}): Consumo promedio de agua')
+    plt.xlabel('Consumo promedio real (m³)')
+    plt.ylabel('Consumo promedio predicho (m³)')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_path, 'mejor_modelo_predicciones.png'))
+    plt.close()
+
     print(f"Visualizaciones comparativas de modelos generadas en {output_path}")
 
-def save_model_data(best_model, all_model_metrics, best_params, output_dir, best_model_name):
+def save_model_data(best_model, all_model_metrics, best_params, output_dir, best_model_name, preprocessor):
     """
     Guarda el mejor modelo y la información de todos los modelos
     """
     os.makedirs(output_dir, exist_ok=True)
     
     # Guardar el mejor modelo
-    joblib.dump(best_model, os.path.join(output_dir, 'best_model.pkl'))
+    model_data = {
+        'model': best_model,
+        'preprocessor': preprocessor
+    }
+    joblib.dump(model_data, os.path.join(output_dir, 'best_model.pkl'))
     
     # Preparar información de modelos para guardar
     model_info = {
@@ -435,6 +503,7 @@ def main():
     Función principal que ejecuta todo el proceso de ingeniería del modelo
     """
     try:
+        
         # Definir rutas
         data_file = 'static/data/data_processed.csv'
         model_output_dir = 'static/data/models'
@@ -455,8 +524,8 @@ def main():
         # Dividir datos
         X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y)
         
-        # Crear pipeline de preprocesamiento
-        preprocessor = create_preprocessing_pipeline(features)
+        # Crear preprocesador
+        preprocessor = create_preprocessing_pipeline()
         
         # Entrenar y comparar modelos
         model_results, best_model_name = train_models(X_train, y_train, preprocessor)
@@ -466,21 +535,17 @@ def main():
         
         # Evaluar todos los modelos
         all_models_metrics, all_models_predictions = evaluate_all_models(
-            model_results, X_val, y_val, X_test, y_test, X_train, y_train
+            model_results, X_val, y_val, X_test, y_test, X_train, y_train, preprocessor
         )
         
-        # Extraer los modelos entrenados de los resultados
-        trained_models = {}
-        for name, model_data in model_results.items():
-            pipeline = model_data['pipeline']
-            pipeline.fit(X_train, y_train)
-            trained_models[name] = pipeline
+        # Extraer los modelos entrenados
+        trained_models = {name: model_data['model'] for name, model_data in model_results.items()}
         
         # Generar visualizaciones comparativas
         generate_model_visualizations(all_models_predictions, features, trained_models, viz_path, all_models_metrics)
         
         # Guardar modelo e información
-        save_model_data(best_model, all_models_metrics, best_params, model_output_dir, best_model_name)
+        save_model_data(best_model, all_models_metrics, best_params, model_output_dir, best_model_name, preprocessor)
         
         print("Proceso de ingeniería del modelo completado con éxito")
         return True
