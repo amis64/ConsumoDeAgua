@@ -10,6 +10,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+from sklearn.model_selection import KFold
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -30,8 +31,12 @@ def prepare_features_target(df):
     Prepara las características (features) y la variable objetivo (target)
     """
     # Variable objetivo: consumo promedio de agua por suscriptor
-    target = 'PROMEDIO CONSUMO ACUEDUCTO'
+    target = 'PROMEDIO CONSUMO ACUEDUCTO_log'
+    # Excluir columnas que no queremos usar como features
+    columns_to_exclude = [target, 'PROMEDIO CONSUMO ACUEDUCTO', 'MES']
     
+    # Definimos las características a usar
+    features = [col for col in df.columns if col not in columns_to_exclude]
     # Excluir cualquier columna de texto (como 'MES') y usar solo columnas numéricas
     # o columnas dummy que ya estén convertidas
     if 'MES' in df.columns:
@@ -227,14 +232,23 @@ def evaluate_model(model, X_val, y_val, X_test, y_test, preprocessor, model_name
     """
     Evalúa el modelo en los conjuntos de validación y prueba
     """
+    # Constante usada en la transformación logarítmica
+    log_constant = 1
+    
     # Procesar datos de validación
     X_val_processed = process_features(X_val, preprocessor, model_name, results)
     
-    # Evaluar en conjunto de validación
-    y_val_pred = model.predict(X_val_processed)
-    val_rmse = np.sqrt(mean_squared_error(y_val, y_val_pred))
-    val_mae = mean_absolute_error(y_val, y_val_pred)
-    val_r2 = r2_score(y_val, y_val_pred)
+    # Predecir en escala logarítmica
+    y_val_pred_log = model.predict(X_val_processed)
+    
+    # Invertir transformación logarítmica para evaluación
+    y_val_pred = np.exp(y_val_pred_log) - log_constant
+    y_val_original = np.exp(y_val) - log_constant
+    
+    # Calcular métricas en escala original
+    val_rmse = np.sqrt(mean_squared_error(y_val_original, y_val_pred))
+    val_mae = mean_absolute_error(y_val_original, y_val_pred)
+    val_r2 = r2_score(y_val_original, y_val_pred)
     
     print("Rendimiento en conjunto de validación:")
     print(f"RMSE: {val_rmse:.4f}")
@@ -244,11 +258,17 @@ def evaluate_model(model, X_val, y_val, X_test, y_test, preprocessor, model_name
     # Procesar datos de prueba
     X_test_processed = process_features(X_test, preprocessor, model_name, results)
     
-    # Evaluar en conjunto de prueba
-    y_test_pred = model.predict(X_test_processed)
-    test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
-    test_mae = mean_absolute_error(y_test, y_test_pred)
-    test_r2 = r2_score(y_test, y_test_pred)
+    # Predecir en escala logarítmica
+    y_test_pred_log = model.predict(X_test_processed)
+    
+    # Invertir transformación logarítmica para evaluación
+    y_test_pred = np.exp(y_test_pred_log) - log_constant
+    y_test_original = np.exp(y_test) - log_constant
+    
+    # Calcular métricas en escala original
+    test_rmse = np.sqrt(mean_squared_error(y_test_original, y_test_pred))
+    test_mae = mean_absolute_error(y_test_original, y_test_pred)
+    test_r2 = r2_score(y_test_original, y_test_pred)
     
     print("\nRendimiento en conjunto de prueba:")
     print(f"RMSE: {test_rmse:.4f}")
@@ -269,12 +289,17 @@ def evaluate_model(model, X_val, y_val, X_test, y_test, preprocessor, model_name
         }
     }
     
-    return metrics, y_test, y_test_pred
+    # Retornar los valores en escala logarítmica (para mantener consistencia con el resto del código)
+    # pero las métricas ya están calculadas en escala original
+    return metrics, y_test, y_test_pred_log
 
 def evaluate_all_models(model_results, X_val, y_val, X_test, y_test, X_train, y_train, preprocessor):
     """
     Evalúa todos los modelos entrenados en los conjuntos de validación y prueba
     """
+    # Constante usada en la transformación logarítmica
+    log_constant = 1
+    
     all_models_metrics = {}
     all_models_predictions = {}
     
@@ -285,22 +310,34 @@ def evaluate_all_models(model_results, X_val, y_val, X_test, y_test, X_train, y_
             # Procesar datos de validación
             X_val_processed = process_features(X_val, preprocessor, name, model_results)
             
-            # Evaluar en conjunto de validación
-            y_val_pred = model.predict(X_val_processed)
-            val_rmse = np.sqrt(mean_squared_error(y_val, y_val_pred))
-            val_mae = mean_absolute_error(y_val, y_val_pred)
-            val_r2 = r2_score(y_val, y_val_pred)
+            # Predecir en escala logarítmica
+            y_val_pred_log = model.predict(X_val_processed)
+            
+            # Invertir transformación logarítmica para evaluación
+            y_val_pred = np.exp(y_val_pred_log) - log_constant
+            y_val_original = np.exp(y_val) - log_constant
+            
+            # Calcular métricas en escala original
+            val_rmse = np.sqrt(mean_squared_error(y_val_original, y_val_pred))
+            val_mae = mean_absolute_error(y_val_original, y_val_pred)
+            val_r2 = r2_score(y_val_original, y_val_pred)
             
             # Procesar datos de prueba
             X_test_processed = process_features(X_test, preprocessor, name, model_results)
             
-            # Evaluar en conjunto de prueba
-            y_test_pred = model.predict(X_test_processed)
-            test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
-            test_mae = mean_absolute_error(y_test, y_test_pred)
-            test_r2 = r2_score(y_test, y_test_pred)
+            # Predecir en escala logarítmica
+            y_test_pred_log = model.predict(X_test_processed)
             
-            # Guardar métricas
+            # Invertir transformación logarítmica para evaluación
+            y_test_pred = np.exp(y_test_pred_log) - log_constant
+            y_test_original = np.exp(y_test) - log_constant
+            
+            # Calcular métricas en escala original
+            test_rmse = np.sqrt(mean_squared_error(y_test_original, y_test_pred))
+            test_mae = mean_absolute_error(y_test_original, y_test_pred)
+            test_r2 = r2_score(y_test_original, y_test_pred)
+            
+            # Guardar métricas (calculadas en escala original)
             all_models_metrics[name] = {
                 'validation': {
                     'rmse': val_rmse,
@@ -314,10 +351,10 @@ def evaluate_all_models(model_results, X_val, y_val, X_test, y_test, X_train, y_
                 }
             }
             
-            # Guardar predicciones
+            # Guardar predicciones en escala logarítmica (para consistencia con el resto del código)
             all_models_predictions[name] = {
                 'y_test': y_test,
-                'y_pred': y_test_pred
+                'y_pred': y_test_pred_log
             }
             
             print(f"\nMétricas para {name}:")
@@ -333,7 +370,8 @@ def generate_model_visualizations(models_predictions, features, models, output_p
     Genera visualizaciones para evaluar todos los modelos
     """
     os.makedirs(output_path, exist_ok=True)
-
+    # AÑADIR: Constante usada en la transformación
+    log_constant = 1
     # Paleta de colores para distinguir los modelos
     model_colors = {
         'LinearRegression': 'blue',
@@ -342,15 +380,31 @@ def generate_model_visualizations(models_predictions, features, models, output_p
     }
 
     # ———– SANITY CHECK: asegurar que y_test es el consumo promedio ———–
+    print("\n=== VALORES ANTES DE INVERSIÓN LOGARÍTMICA ===")
     for model_name, pred in models_predictions.items():
         yt = pred['y_test']
-        print(f"[SANITY] {model_name} y_test  min={yt.min():.2f}, max={yt.max():.2f}")
-        if yt.max() > 200:   # ajusta 200 al rango máximo real de tu dataset
-            print(f"⚠️ Atención: y_test para {model_name} supera 200. ¿Estás usando PROMEDIO CONSUMO ACUEDUCTO?")
+        print(f"[ANTES] {model_name} y_test (log) min={yt.min():.4f}, max={yt.max():.4f}")
+    
+    # ———– INVERSIÓN DE LA TRANSFORMACIÓN LOGARÍTMICA ———–
+    models_predictions_original = {}
+    for model_name, pred in models_predictions.items():
+        y_test_log = pred['y_test']
+        y_pred_log = pred['y_pred']
+        
+        # Invertir transformación logarítmica
+        y_test_original = np.exp(y_test_log) - log_constant
+        y_pred_original = np.exp(y_pred_log) - log_constant
+        
+        models_predictions_original[model_name] = {
+            'y_test': y_test_original,
+            'y_pred': y_pred_original
+        }
+        
+        print(f"[DESPUÉS] {model_name} y_test (original) min={y_test_original.min():.2f}, max={y_test_original.max():.2f}")
 
     # ———– 1. Comparación de predicciones vs valores reales ———–
     plt.figure(figsize=(12, 8))
-    for model_name, pred in models_predictions.items():
+    for model_name, pred in models_predictions_original.items():
         y_test = pred['y_test']
         y_pred = pred['y_pred']
         plt.scatter(
@@ -362,8 +416,8 @@ def generate_model_visualizations(models_predictions, features, models, output_p
         )
 
     # Definir límites del gráfico usando sólo y_test
-    min_val = min(pred['y_test'].min() for pred in models_predictions.values())
-    max_val = max(pred['y_test'].max() for pred in models_predictions.values())
+    min_val = min(pred['y_test'].min() for pred in models_predictions_original.values())
+    max_val = max(pred['y_test'].max() for pred in models_predictions_original.values())
     delta   = (max_val - min_val) * 0.10  # 10% de margen
     min_plot = max(0, min_val - delta)
     max_plot = max_val + delta
@@ -382,7 +436,7 @@ def generate_model_visualizations(models_predictions, features, models, output_p
 
     # ———– 2. Histograma de residuos para cada modelo ———–
     plt.figure(figsize=(15, 10))
-    for i, (model_name, pred) in enumerate(models_predictions.items()):
+    for i, (model_name, pred) in enumerate(models_predictions_original.items()):
         plt.subplot(2, 2, i+1)
         residuos = pred['y_test'] - pred['y_pred']
         plt.hist(residuos, bins=30, alpha=0.7, color=model_colors.get(model_name, 'gray'))
@@ -418,6 +472,7 @@ def generate_model_visualizations(models_predictions, features, models, output_p
                 print(f"Error al graficar importancias para {model_name}: {e}")
 
     # ———– 4. Comparación de métricas entre modelos ———–
+    # NOTA: Las métricas ya deberían estar en escala original si se invirtió la transformación en la evaluación
     model_names = list(models_predictions.keys())
     rmse_test   = [all_models_metrics[m]['test']['rmse'] for m in model_names]
     mae_test    = [all_models_metrics[m]['test']['mae']  for m in model_names]
@@ -450,7 +505,7 @@ def generate_model_visualizations(models_predictions, features, models, output_p
         all_models_metrics.items(),
         key=lambda x: x[1]['test']['r2']
     )[0]
-    best_pred = models_predictions[best_model_name]
+    best_pred = models_predictions_original[best_model_name]
     y_test_b  = best_pred['y_test']
     y_pred_b  = best_pred['y_pred']
 
@@ -498,6 +553,51 @@ def save_model_data(best_model, all_model_metrics, best_params, output_dir, best
     
     print(f"Modelo e información guardados en {output_dir}")
 
+def remove_outliers(df, column, method='iqr', threshold=1.5):
+    """
+    Elimina o suaviza outliers en una columna específica
+    """
+    df_clean = df.copy()
+    
+    if method == 'iqr':
+        # Método del rango intercuartílico
+        Q1 = df[column].quantile(0.25)
+        Q3 = df[column].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - threshold * IQR
+        upper_bound = Q3 + threshold * IQR
+    elif method == 'std':
+        # Método de la desviación estándar
+        mean = df[column].mean()
+        std = df[column].std()
+        lower_bound = mean - threshold * std
+        upper_bound = mean + threshold * std
+    
+    # Identificar outliers
+    outliers = (df[column] < lower_bound) | (df[column] > upper_bound)
+    print(f"Identificados {outliers.sum()} outliers de {len(df)} registros ({outliers.sum()/len(df)*100:.2f}%)")
+    
+    # Opción: Suavizar outliers (winsorización)
+    df_clean.loc[df_clean[column] > upper_bound, column] = upper_bound
+    df_clean.loc[df_clean[column] < lower_bound, column] = lower_bound
+    
+    return df_clean
+
+def apply_log_transform(df, column, add_constant=1):
+    """
+    Aplica transformación logarítmica a una columna
+    """
+    df_transformed = df.copy()
+    
+    # Crear nueva columna con transformación log
+    df_transformed[f'{column}_log'] = np.log(df_transformed[column] + add_constant)
+    
+    print(f"Transformación logarítmica aplicada a {column}")
+    print(f"Asimetría original: {df[column].skew():.4f}")
+    print(f"Asimetría después de transformación: {df_transformed[f'{column}_log'].skew():.4f}")
+    
+    return df_transformed
+
 def main():
     """
     Función principal que ejecuta todo el proceso de ingeniería del modelo
@@ -517,6 +617,23 @@ def main():
         df = load_processed_data(data_file)
         if df is None:
             return False
+
+        # Remover o suavizar outliers en la variable objetivo
+        df = remove_outliers(df, 'PROMEDIO CONSUMO ACUEDUCTO', method='iqr', threshold=1.5)
+        
+
+        # Aplicar transformación logarítmica al consumo
+        df = apply_log_transform(df, 'PROMEDIO CONSUMO ACUEDUCTO', add_constant=1)
+        
+        # IMPORTANTE: Guardar los parámetros de transformación para invertir después
+        log_constant = 1
+        
+        # Preparar características y variable objetivo
+        # MODIFICAR: Usar la columna transformada como objetivo
+        X, y, features = prepare_features_target(df)
+        
+        # Dividir datos
+        X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y)
         
         # Preparar características y variable objetivo
         X, y, features = prepare_features_target(df)
