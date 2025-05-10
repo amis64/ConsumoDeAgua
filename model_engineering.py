@@ -30,33 +30,41 @@ def prepare_features_target(df):
     """
     Prepara las características (features) y la variable objetivo (target)
     """
-    # Variable objetivo: consumo promedio de agua por suscriptor
+    # Variable objetivo
     target = 'PROMEDIO CONSUMO ACUEDUCTO_log'
-    # Excluir columnas que no queremos usar como features
-    columns_to_exclude = [target, 'PROMEDIO CONSUMO ACUEDUCTO', 'MES']
     
-    # Definimos las características a usar
+    # CRÍTICO: Excluir TODAS las versiones de la variable objetivo
+    columns_to_exclude = [
+        target,
+        'PROMEDIO CONSUMO ACUEDUCTO',
+        'PROMEDIO CONSUMO ACUEDUCTO_log',  # Por seguridad
+        'MES'  # Si existe como texto
+    ]
+    
+    # Definir características excluyendo todas las versiones del objetivo
     features = [col for col in df.columns if col not in columns_to_exclude]
-    # Excluir cualquier columna de texto (como 'MES') y usar solo columnas numéricas
-    # o columnas dummy que ya estén convertidas
-    if 'MES' in df.columns:
-        df = df.drop('MES', axis=1)
     
-    # Definimos las características a usar: todas las columnas excepto la variable objetivo
-    features = [col for col in df.columns if col != target]
+    # Verificaciones de seguridad
+    print(f"Variable objetivo: {target}")
+    print(f"Total de características: {len(features)}")
+    print(f"Columnas excluidas: {columns_to_exclude}")
     
-    # Verificamos que las columnas dummy estén presentes
+    # VERIFICACIÓN CRÍTICA
+    for col in features:
+        if 'PROMEDIO' in col.upper() or 'CONSUMO' in col.upper():
+            print(f"⚠️ ADVERTENCIA: Columna sospechosa en características: {col}")
+            raise ValueError(f"La columna {col} parece contener información del objetivo")
+    
+    # Verificar tipos de características
     estrato_cols = [col for col in features if col.startswith('Estrato_')]
     municipio_cols = [col for col in features if col.startswith('Municipio_')]
     mes_cols = [col for col in features if col == 'MES_NUM']
     
-    print(f"Variable objetivo: {target}")
     print(f"Encontradas {len(estrato_cols)} columnas de estrato")
     print(f"Encontradas {len(municipio_cols)} columnas de municipio")
     print(f"Encontradas {len(mes_cols)} columnas de mes")
-    print(f"Total de características: {len(features)}")
     
-    # Separamos características y objetivo
+    # Separar características y objetivo
     X = df[features]
     y = df[target]
     
@@ -632,12 +640,15 @@ def main():
         # MODIFICAR: Usar la columna transformada como objetivo
         X, y, features = prepare_features_target(df)
         
-        # Dividir datos
-        X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y)
-        
-        # Preparar características y variable objetivo
-        X, y, features = prepare_features_target(df)
-        
+        # Verificación adicional de seguridad
+        print("\n=== VERIFICACIÓN DE INTEGRIDAD DE DATOS ===")
+        print(f"Columnas en DataFrame original: {df.columns.tolist()}")
+        print(f"Características seleccionadas: {features[:10]}...")  # Primeras 10
+        print(f"Variable objetivo: {y.name}")
+
+        # Asegurar que no hay fuga de datos
+        if 'PROMEDIO CONSUMO ACUEDUCTO' in features:
+            raise ValueError("¡FUGA DE DATOS DETECTADA! La variable objetivo está en las características")
         # Dividir datos
         X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y)
         
