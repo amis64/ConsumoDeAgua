@@ -14,7 +14,8 @@
                 <p>
                     En esta fase, se realiza la selección, limpieza y transformación de los datos 
                     de consumo de agua potable en el departamento de Caldas. El objetivo es preparar 
-                    un conjunto de datos de alta calidad para la fase posterior de modelado.
+                    un conjunto de datos de alta calidad enfocado en el consumo promedio por suscriptor
+                    para la fase posterior de modelado.
                 </p>
                 
                 {% if not processed_data_exists %}
@@ -60,8 +61,8 @@
                             <div class="col-md-4">
                                 <div class="card bg-light">
                                     <div class="card-body">
-                                        <h5 class="card-title">Período</h5>
-                                        <p class="card-text display-6">{{ stats.years_range }}</p>
+                                        <h5 class="card-title">Estratos</h5>
+                                        <p class="card-text display-6">6</p>
                                     </div>
                                 </div>
                             </div>
@@ -70,16 +71,17 @@
                             <div class="col-md-6">
                                 <div class="card bg-light">
                                     <div class="card-body">
-                                        <h5 class="card-title">Total Suscriptores</h5>
-                                        <p class="card-text display-6">{{ stats.total_subscribers }}</p>
+                                        <h5 class="card-title">Consumo Promedio (m³)</h5>
+                                        <p class="card-text display-6">{{ "%.2f"|format(stats.avg_consumption) }}</p>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="card bg-light">
                                     <div class="card-body">
-                                        <h5 class="card-title">Consumo Total (m³)</h5>
-                                        <p class="card-text display-6">{{ stats.total_consumption }}</p>
+                                        <h5 class="card-title">Features Generados</h5>
+                                        <p class="card-text display-6">{{ stats.num_features }}</p>
+                                        <small class="text-muted">(Incluye variables dummy para municipios y estratos)</small>
                                     </div>
                                 </div>
                             </div>
@@ -104,16 +106,15 @@
                     y se seleccionaron las columnas clave para el análisis:
                 </p>
                 <ul>
-                    <li><strong>AÑO y MES:</strong> Variables temporales para identificar patrones estacionales y tendencias.</li>
+                    <li><strong>MES:</strong> Variable temporal para identificar patrones estacionales en el consumo de agua.</li>
                     <li><strong>MUNICIPIO:</strong> Ubicación geográfica dentro del departamento de Caldas.</li>
                     <li><strong>ESTRATO:</strong> Clasificación socioeconómica, centrándonos solo en los estratos residenciales (1-6).</li>
-                    <li><strong>No. SUSCRIPTORES ACUEDUCTO:</strong> Cantidad de usuarios del servicio.</li>
-                    <li><strong>CONSUMO M3 ACUEDUCTO:</strong> Volumen total de agua consumida.</li>
-                    <li><strong>PROMEDIO CONSUMO ACUEDUCTO:</strong> Consumo promedio por suscriptor.</li>
+                    <li><strong>PROMEDIO CONSUMO ACUEDUCTO:</strong> Consumo promedio de agua por suscriptor, nuestra variable objetivo.</li>
                 </ul>
                 <p>
-                    Del conjunto de datos original, se excluyeron columnas no relevantes como NIT, RAZÓN SOCIAL, 
-                    y datos de alcantarillado, enfocándonos exclusivamente en el servicio de acueducto.
+                    Del conjunto de datos original, se excluyeron columnas no relevantes o redundantes como AÑO,
+                    NÚMERO DE SUSCRIPTORES y CONSUMO TOTAL, enfocándonos exclusivamente en el consumo promedio 
+                    por suscriptor para un análisis más preciso de patrones de consumo.
                 </p>
             </div>
         </div>
@@ -128,34 +129,32 @@
             </div>
             <div class="card-body">
                 <p>
-                    La fase de limpieza se centró en corregir inconsistencias de formato y filtrar registros problemáticos:
+                    La fase de limpieza se centró en preparar los datos para un análisis enfocado en el consumo promedio:
                 </p>
                 <ul>
-                    <li>
-                        <strong>Tratamiento de valores numéricos:</strong> Se implementó un enfoque sofisticado para manejar 
-                        correctamente los formatos numéricos, tratando los valores como cadenas de texto durante el proceso
-                        de limpieza para evitar conversiones automáticas que podrían introducir errores.
-                    </li>
-                    <li>
-                        <strong>Detección inteligente de valores problemáticos:</strong> Se identificaron y eliminaron 
-                        registros con puntos decimales incorrectos (patrones como "1.35"), pero preservando valores como "434.0"
-                        que representan enteros formateados como flotantes.
-                    </li>
                     <li>
                         <strong>Filtrado de datos residenciales:</strong> Se excluyeron categorías no residenciales 
                         como "Industrial", "Comercial" y "Público/Oficial", centrando el análisis en 
                         consumo doméstico por estrato socioeconómico.
                     </li>
                     <li>
-                        <strong>Omisión de registros sin suscriptores:</strong> Se eliminaron registros donde 
-                        "No. SUSCRIPTORES ACUEDUCTO" era vacío o cero, ya que no aportan información 
-                        significativa sobre patrones de consumo.
+                        <strong>Extracción del número de estrato:</strong> Se transformó la variable categórica 
+                        "Estrato" a formato numérico, facilitando su uso en el análisis.
+                    </li>
+                    <li>
+                        <strong>Validación del consumo promedio:</strong> Se aseguró que todos los valores de consumo 
+                        promedio fueran positivos y válidos para el análisis.
+                    </li>
+                    <li>
+                        <strong>Análisis de balance por municipio:</strong> Se evaluó la distribución de registros 
+                        por municipio, identificando municipios sobre-representados o con muy pocos datos, y 
+                        aplicando técnicas de muestreo para equilibrar el dataset y evitar sesgos geográficos.
                     </li>
                 </ul>
                 <p>
-                    Este proceso meticuloso de limpieza permitió preservar la mayor cantidad posible de 
-                    registros válidos (más de 9,000) mientras se eliminaban únicamente aquellos con 
-                    problemas reales de formato, garantizando así un conjunto de datos de alta calidad.
+                    Este proceso de limpieza permitió obtener un conjunto de datos equilibrado y representativo
+                    para analizar los patrones de consumo promedio de agua en diferentes contextos 
+                    socioeconómicos y geográficos.
                 </p>
             </div>
         </div>
@@ -174,27 +173,23 @@
                 </p>
                 <ul>
                     <li>
-                        <strong>Conversión del estrato:</strong> Se extrajo el número de estrato eliminando 
-                        el prefijo "Estrato", convirtiéndolo en una variable numérica para facilitar el análisis.
-                    </li>
-                    <li>
                         <strong>Normalización de meses:</strong> Se transformaron los nombres de meses a valores 
                         numéricos (1-12) para facilitar el análisis temporal y permitir ordenamiento cronológico.
-                    </li>
-                    <li>
-                        <strong>Limpieza de separadores numéricos:</strong> Se eliminaron puntos separadores de miles 
-                        en campos numéricos, distinguiendo cuidadosamente entre puntos decimales legítimos y separadores,
-                        con un tratamiento especial para valores que terminan en ".0".
                     </li>
                     <li>
                         <strong>Estandarización de municipios:</strong> Se normalizaron los nombres de municipios 
                         aplicando formato de capitalización consistente para mejorar la legibilidad.
                     </li>
+                    <li>
+                        <strong>Codificación one-hot:</strong> Se aplicó codificación one-hot (dummies) a las variables 
+                        categóricas ESTRATO y MUNICIPIO, creando columnas binarias para cada categoría, lo que permite 
+                        su uso en algoritmos de machine learning que requieren entradas numéricas.
+                    </li>
                 </ul>
                 <p>
-                    Las transformaciones aplicadas preservan la integridad de los datos mientras los convierten a formatos
-                    apropiados para el modelado estadístico, con especial atención a mantener la coherencia entre
-                    el consumo total, el número de suscriptores y el consumo promedio.
+                    Las transformaciones aplicadas permiten aprovechar mejor las variables categóricas y temporales
+                    en los modelos predictivos, facilitando la identificación de patrones de consumo de agua
+                    según características sociodemográficas y geográficas.
                 </p>
             </div>
         </div>
@@ -215,16 +210,15 @@
                 <ul>
                     <li>
                         <strong>Diagnósticos detallados:</strong> El proceso incluye impresión de diagnósticos en 
-                        cada etapa, mostrando ejemplos concretos de los valores antes y después del procesamiento 
-                        para facilitar la comprensión y verificación.
+                        cada etapa, mostrando el número de registros y dimensiones del dataset después de cada transformación.
                     </li>
                     <li>
-                        <strong>Registro del proceso:</strong> Se mantiene un registro detallado de cada paso 
-                        del procesamiento, incluyendo conteos de registros procesados, filtrados y transformados.
+                        <strong>Registro de decisiones:</strong> Se documentan las decisiones sobre equilibrado de 
+                        datos por municipio, incluyendo análisis de municipios sobre-representados o con datos escasos.
                     </li>
                     <li>
-                        <strong>Explicación de decisiones:</strong> El código documenta claramente las decisiones tomadas
-                        para manejar casos especiales como los formatos numéricos inconsistentes.
+                        <strong>Explicación de la transformación a variables dummy:</strong> Se detalla el proceso de 
+                        codificación one-hot y su impacto en la dimensionalidad de los datos.
                     </li>
                 </ul>
                 <p>
@@ -246,7 +240,7 @@
             <div class="card-body">
                 <p class="mb-4">
                     Las siguientes visualizaciones permiten entender mejor la distribución y patrones 
-                    en los datos de consumo hídrico en Caldas:
+                    en los datos de consumo promedio hídrico por suscriptor en Caldas:
                 </p>
                 
                 <div class="row">
@@ -270,15 +264,15 @@
                     <div class="col-md-6 mb-4">
                         <div class="card">
                             <div class="card-header">
-                                <h5>Tendencia temporal de consumo por estrato</h5>
+                                <h5>Tendencia mensual de consumo por estrato</h5>
                             </div>
                             <div class="card-body">
                                 <img src="{{ url_for('static', filename='img/data_viz/tendencia_consumo.png') }}" class="img-fluid" alt="Tendencia de consumo">
                             </div>
                             <div class="card-footer">
                                 <p class="text-muted">
-                                    Evolución del consumo total de agua a lo largo del tiempo por año y mes, segmentado 
-                                    por estrato socioeconómico, revelando patrones estacionales y tendencias.
+                                    Evolución del consumo promedio de agua a lo largo del año para cada estrato,
+                                    revelando patrones estacionales en el uso del recurso hídrico.
                                 </p>
                             </div>
                         </div>
@@ -286,7 +280,7 @@
                 </div>
                 
                 <div class="row">
-                    <div class="col-md-12 mb-4">
+                    <div class="col-md-6 mb-4">
                         <div class="card">
                             <div class="card-header">
                                 <h5>Mapa de calor: Consumo promedio por municipio y estrato</h5>
@@ -296,8 +290,44 @@
                             </div>
                             <div class="card-footer">
                                 <p class="text-muted">
-                                    Esta visualización permite identificar patrones geográficos en el consumo de agua, 
-                                    mostrando qué municipios y estratos tienen mayores o menores niveles de consumo promedio.
+                                    Esta visualización permite identificar patrones geográficos en el consumo promedio de agua, 
+                                    mostrando qué municipios y estratos tienen mayores o menores niveles de consumo.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Distribución del consumo promedio</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="{{ url_for('static', filename='img/data_viz/distribucion_consumo_promedio.png') }}" class="img-fluid" alt="Distribución de consumo promedio">
+                            </div>
+                            <div class="card-footer">
+                                <p class="text-muted">
+                                    Histograma que muestra la distribución general del consumo promedio de agua por suscriptor,
+                                    permitiendo identificar rangos típicos de consumo y valores atípicos.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-4 mx-auto">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Comparación de consumo por municipio</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="{{ url_for('static', filename='img/data_viz/consumo_por_municipio.png') }}" class="img-fluid" alt="Consumo por municipio">
+                            </div>
+                            <div class="card-footer">
+                                <p class="text-muted">
+                                    Ranking de municipios según su consumo promedio de agua por suscriptor,
+                                    facilitando la identificación de zonas con mayor o menor eficiencia hídrica.
                                 </p>
                             </div>
                         </div>

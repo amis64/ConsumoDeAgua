@@ -28,13 +28,29 @@ def data_engineering():
     if processed_data_exists:
         try:
             df = pd.read_csv('static/data/data_processed.csv')
+            
+            # Calcular número de municipios - pueden estar en formato one-hot
+            num_municipalities = 0
+            if 'MUNICIPIO' in df.columns:
+                num_municipalities = df['MUNICIPIO'].nunique()
+            else:
+                # Buscar columnas de municipio en formato one-hot
+                municipio_cols = [col for col in df.columns if col.startswith('Municipio_')]
+                num_municipalities = len(municipio_cols)
+            
+            # Calcular consumo promedio - ahora es nuestra variable objetivo
+            avg_consumption = 0
+            if 'PROMEDIO CONSUMO ACUEDUCTO' in df.columns:
+                avg_consumption = df['PROMEDIO CONSUMO ACUEDUCTO'].mean()
+            
+            # Contar número total de features
+            num_features = len(df.columns)
+            
             stats = {
                 'num_records': len(df),
-                'num_municipalities': df['MUNICIPIO'].nunique(),
-                'years_range': f"{df['AÑO'].min()} - {df['AÑO'].max()}",
-                # Usar los valores sin modificar
-                'total_subscribers': df['No. SUSCRIPTORES ACUEDUCTO'].sum(),
-                'total_consumption': df['CONSUMO M3 ACUEDUCTO'].sum()
+                'num_municipalities': num_municipalities,
+                'avg_consumption': avg_consumption,
+                'num_features': num_features
             }
         except Exception as e:
             stats = {'error': str(e)}
