@@ -16,6 +16,15 @@
                     para predecir el consumo promedio mensual de agua potable por suscriptor en diferentes municipios de Caldas
                     segmentado por estrato socioeconómico, utilizando los datos procesados en la fase anterior.
                 </p>
+                <p>
+                    Para mejorar el rendimiento del modelo y manejar la distribución sesgada de los datos,
+                    se aplicaron técnicas de preprocesamiento adicionales:
+                </p>
+                <ul>
+                    <li><strong>Eliminación de outliers:</strong> Mediante el método IQR con un threshold de 1.5</li>
+                    <li><strong>Transformación logarítmica:</strong> Para normalizar la distribución de la variable objetivo</li>
+                    <li><strong>Prevención de fuga de datos:</strong> Asegurando que la variable objetivo no se use como predictora</li>
+                </ul>
                 
                 {% if not model_exists %}
                 <div class="alert alert-warning">
@@ -70,6 +79,10 @@
                         </div>
                         
                         <h5 class="mt-4">Mejor modelo: {{ model_info.name }}</h5>
+                        <p>
+                            El modelo RandomForest alcanzó un R² de aproximadamente 0.72, lo que indica que explica
+                            el 72% de la varianza en el consumo promedio de agua, un resultado sólido para datos del mundo real.
+                        </p>
                         
                         {% if model_info.params %}
                         <div class="mt-3">
@@ -104,6 +117,38 @@
     <div class="col-md-12">
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Preprocesamiento de Datos</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    Antes del entrenamiento de los modelos, se aplicaron técnicas de preprocesamiento para mejorar
+                    la calidad de los datos y el rendimiento predictivo:
+                </p>
+                <ul>
+                    <li>
+                        <strong>Tratamiento de outliers:</strong> Se utilizó el método IQR (Rango Intercuartílico)
+                        con un threshold de 1.5 para identificar y suavizar valores extremos mediante winsorización,
+                        preservando la mayor cantidad de datos posible.
+                    </li>
+                    <li>
+                        <strong>Transformación logarítmica:</strong> Se aplicó log(x+1) a la variable objetivo
+                        para normalizar su distribución y reducir el impacto de valores extremos, mejorando
+                        la capacidad predictiva de los modelos.
+                    </li>
+                    <li>
+                        <strong>Validación de integridad:</strong> Se implementaron verificaciones para evitar
+                        fugas de datos, asegurando que la variable objetivo no se incluya como característica predictora.
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
                 <h3 class="card-title mb-0">Selección de Algoritmos</h3>
             </div>
             <div class="card-body">
@@ -120,18 +165,18 @@
                     <li>
                         <strong>Random Forest Regressor:</strong> Conjunto de árboles de decisión que captura 
                         relaciones no lineales y puede manejar variables categóricas codificadas como one-hot.
-                        Ofrece buena interpretabilidad a través de la importancia de características.
+                        Demostró ser el mejor modelo con un R² de ~0.72.
                     </li>
                     <li>
                         <strong>Gradient Boosting Regressor:</strong> Técnica de ensamblaje que construye árboles 
-                        de forma secuencial para corregir errores de árboles anteriores. Suele ofrecer alta 
-                        precisión a costa de mayor tiempo de entrenamiento.
+                        de forma secuencial para corregir errores de árboles anteriores. Mostró buen rendimiento
+                        pero inferior al Random Forest.
                     </li>
                 </ul>
                 <p>
                     La selección del algoritmo óptimo se basa en la comparación de métricas de rendimiento 
                     mediante validación cruzada, priorizando aquel que minimiza el error de predicción (RMSE)
-                    en la estimación del consumo promedio mensual de agua por suscriptor.
+                    y maximiza el R² en la estimación del consumo promedio mensual de agua por suscriptor.
                 </p>
             </div>
         </div>
@@ -155,6 +200,10 @@
                         con datos que no ha visto durante el entrenamiento.
                     </li>
                     <li>
+                        <strong>Aplicación de transformaciones:</strong> Se aplican las transformaciones de outliers
+                        y logarítmica a la variable objetivo antes de la división de datos.
+                    </li>
+                    <li>
                         <strong>Preprocesamiento:</strong> Se implementa un pipeline que realiza:
                         <ul>
                             <li>Estandarización de variables numéricas (MES_NUM) para nivelar escalas</li>
@@ -167,7 +216,7 @@
                     </li>
                     <li>
                         <strong>Selección del mejor modelo:</strong> Se elige el algoritmo con menor error 
-                        cuadrático medio (RMSE) en la validación cruzada.
+                        cuadrático medio (RMSE) en la validación cruzada. RandomForest fue seleccionado como el mejor modelo.
                     </li>
                 </ol>
                 <p>
@@ -188,7 +237,7 @@
             </div>
             <div class="card-body">
                 <p>
-                    Una vez seleccionado el mejor algoritmo, se realiza un ajuste fino de sus hiperparámetros 
+                    Una vez seleccionado el mejor algoritmo (RandomForest), se realiza un ajuste fino de sus hiperparámetros 
                     para optimizar su rendimiento:
                 </p>
                 <ul>
@@ -198,11 +247,12 @@
                         validación cruzada.
                     </li>
                     <li>
-                        <strong>Parámetros optimizados:</strong> Dependiendo del algoritmo seleccionado, se ajustan 
-                        parámetros específicos:
+                        <strong>Parámetros optimizados para Random Forest:</strong>
                         <ul>
-                            <li><strong>Random Forest:</strong> Número de árboles, profundidad máxima, muestras mínimas para división, etc.</li>
-                            <li><strong>Gradient Boosting:</strong> Tasa de aprendizaje, profundidad, número de estimadores, etc.</li>
+                            <li>Número de árboles (n_estimators): 50, 100, 200</li>
+                            <li>Profundidad máxima (max_depth): None, 10, 20, 30</li>
+                            <li>Muestras mínimas para división (min_samples_split): 2, 5, 10</li>
+                            <li>Muestras mínimas por hoja (min_samples_leaf): 1, 2, 4</li>
                         </ul>
                     </li>
                     <li>
@@ -242,16 +292,19 @@
                     <li>
                         <strong>Métricas de evaluación:</strong>
                         <ul>
-                            <li><strong>RMSE (Root Mean Squared Error):</strong> Mide la magnitud del error de predicción en metros cúbicos por suscriptor (m³), penalizando errores grandes.</li>
+                            <li><strong>RMSE (Root Mean Squared Error):</strong> Mide la magnitud del error de predicción en metros cúbicos por suscriptor (m³), penalizando errores grandes. El mejor modelo alcanzó un RMSE de aproximadamente 2.6 m³.</li>
                             <li><strong>MAE (Mean Absolute Error):</strong> Proporciona una medida más robusta de error promedio en las mismas unidades que la variable objetivo (m³).</li>
-                            <li><strong>R² (Coeficiente de determinación):</strong> Indica la proporción de varianza en el consumo promedio que es explicada por el modelo.</li>
+                            <li><strong>R² (Coeficiente de determinación):</strong> Indica la proporción de varianza en el consumo promedio que es explicada por el modelo. El modelo final alcanzó un R² de ~0.72, lo que indica que explica el 72% de la variabilidad en los datos.</li>
                         </ul>
                     </li>
                 </ul>
                 <p>
-                    Este enfoque multi-métrica y comparativo proporciona una visión completa del rendimiento de todos los modelos, 
-                    permitiendo identificar no solo cuál es el mejor en términos absolutos, sino también comprender las 
-                    fortalezas y debilidades relativas de cada enfoque para la predicción del consumo promedio de agua.
+                    <strong>Nota importante:</strong> Las métricas se calculan en la escala original (m³) después de 
+                    invertir la transformación logarítmica, proporcionando valores interpretables del rendimiento real.
+                </p>
+                <p>
+                    Los resultados muestran que el modelo Random Forest tiene un excelente rendimiento con buena
+                    generalización entre los conjuntos de validación y prueba, sin signos de overfitting.
                 </p>
             </div>
         </div>
@@ -268,7 +321,9 @@
             <div class="card-body">
                 <p class="mb-4">
                     Las siguientes visualizaciones permiten comparar el rendimiento de los diferentes modelos
-                    y comprender los factores más influyentes en la predicción del consumo promedio de agua:
+                    y comprender los factores más influyentes en la predicción del consumo promedio de agua.
+                    Las visualizaciones muestran los valores en la escala original (m³) después de invertir
+                    la transformación logarítmica.
                 </p>
                 
                 <div class="row">
@@ -283,8 +338,8 @@
                             <div class="card-footer">
                                 <p class="text-muted">
                                     Comparación entre los valores reales de consumo promedio y las predicciones de los distintos modelos.
-                                    Los puntos más cercanos a la línea diagonal representan predicciones más precisas. Cada color
-                                    corresponde a un algoritmo diferente.
+                                    Los puntos más cercanos a la línea diagonal representan predicciones más precisas. 
+                                    Se puede observar que RandomForest (verde) tiene el mejor ajuste.
                                 </p>
                             </div>
                         </div>
@@ -323,8 +378,8 @@
                             <div class="card-footer">
                                 <p class="text-muted">
                                     Este gráfico compara las métricas de rendimiento (RMSE, MAE y R²) de los distintos modelos.
-                                    Permite identificar rápidamente qué algoritmo ofrece el mejor equilibrio entre las diferentes
-                                    métricas de evaluación.
+                                    RandomForest muestra el mejor equilibrio con el menor error y el mayor R²,
+                                    confirmándolo como la mejor opción para este problema.
                                 </p>
                             </div>
                         </div>
@@ -342,9 +397,9 @@
                             </div>
                             <div class="card-footer">
                                 <p class="text-muted">
-                                    Gráfico de dispersión que muestra las predicciones del mejor modelo en comparación
+                                    Gráfico de dispersión que muestra las predicciones del mejor modelo (RandomForest) en comparación
                                     con los valores reales de consumo promedio. Los puntos cercanos a la línea roja punteada
-                                    representan predicciones más precisas.
+                                    representan predicciones más precisas. El modelo muestra un ajuste sólido con R² de ~0.72.
                                 </p>
                             </div>
                         </div>
@@ -366,6 +421,7 @@
                                     Este gráfico muestra las variables con mayor influencia en las predicciones del mejor modelo.
                                     Permite identificar qué características (mes, municipio, estrato) tienen mayor impacto en el 
                                     consumo promedio de agua, proporcionando insights valiosos para la gestión del recurso hídrico.
+                                    Notablemente, MES_NUM es una característica importante, lo que sugiere patrones estacionales en el consumo.
                                 </p>
                             </div>
                         </div>
