@@ -13,7 +13,6 @@ Este proyecto utiliza machine learning para predecir el consumo promedio mensual
 - Municipio de Caldas
 - Estrato socioeconómico (1-6)
 
-El modelo RandomForest implementado alcanza un R² de 0.72, explicando el 72% de la varianza en el consumo.
 
 ## Estructura del proyecto
 
