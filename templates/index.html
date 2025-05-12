@@ -11,12 +11,16 @@
         El objetivo es ofrecer herramientas de planificación para una gestión más eficiente y
         equitativa del recurso hídrico.
     </p>
-    <a class="btn btn-primary btn-lg" href="/entendimiento-negocio" role="button">Comenzar</a>
+    <div class="mt-4">
+        <a class="btn btn-primary btn-lg me-2" href="/prediccion" role="button">Realizar Predicción</a>
+        <a class="btn btn-outline-primary btn-lg" href="/api_documentacion" role="button">Documentación API</a>
+    </div>
 </div>
 
-<div class="row mt-5">
-    <div class="col-md-4">
-        <div class="card">
+<h2 class="mt-5 mb-4">Desarrollo del Proyecto</h2>
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
             <div class="card-body">
                 <h5 class="card-title">Entendimiento del Negocio y los Datos</h5>
                 <p class="card-text">Comprensión de objetivos, preguntas clave, evaluación de datos y análisis de viabilidad.</p>
@@ -24,8 +28,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
             <div class="card-body">
                 <h5 class="card-title">Ingeniería de Datos</h5>
                 <p class="card-text">Selección, limpieza, transformación y documentación de los datos.</p>
@@ -33,12 +37,34 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
             <div class="card-body">
                 <h5 class="card-title">Ingeniería del Modelo</h5>
                 <p class="card-text">Selección de algoritmos, entrenamiento, ajuste de hiperparámetros y validación.</p>
                 <a href="/ingenieria-modelo" class="btn btn-primary">Ver más</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 class="mt-5 mb-4">Aplicación y API en producción</h2>
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Predicción Interactiva</h5>
+                <p class="card-text">Utiliza el modelo en producción para predecir el consumo de agua según el mes, municipio y estrato socioeconómico.</p>
+                <a href="/prediccion" class="btn btn-success">Realizar Predicción</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">API REST</h5>
+                <p class="card-text">Integra el modelo predictivo en tus propias aplicaciones y sistemas a través de una API REST documentada.</p>
+                <a href="/api_documentacion" class="btn btn-info">Ver Documentación</a>
             </div>
         </div>
     </div>
