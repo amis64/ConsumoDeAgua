@@ -52,30 +52,65 @@ class ModelService:
         """Carga el modelo entrenado y su información"""
         try:
             # Cargar modelo y preprocesador
-            model_data = joblib.load(os.path.join(self.model_path, 'best_model.pkl'))
-            self.model = model_data['model']
-            self.preprocessor = model_data.get('preprocessor')
+            model_path = os.path.join(self.model_path, 'best_model.pkl')
+            model_data = joblib.load(model_path)
+            
+            # Manejar diferentes formatos de guardado
+            if isinstance(model_data, dict):
+                self.model = model_data.get('model')
+                self.preprocessor = model_data.get('preprocessor')
+            else:
+                # Si se guardó directamente el modelo
+                self.model = model_data
+                self.preprocessor = None
+            
+            if self.model is None:
+                raise ValueError("No se encontró un modelo válido en el archivo cargado")
             
             # Cargar información del modelo
-            self.model_info = joblib.load(os.path.join(self.model_path, 'model_info.pkl'))
+            info_path = os.path.join(self.model_path, 'model_info.pkl')
+            self.model_info = joblib.load(info_path)
+            
             print(f"Modelo '{self.model_info['name']}' cargado correctamente")
+            print(f"Tipo de modelo: {type(self.model).__name__}")
+            
+            # Información sobre el preprocesador
+            if self.preprocessor:
+                print(f"Preprocesador cargado: {type(self.preprocessor).__name__}")
+            else:
+                print("No se encontró preprocesador")
+                
         except Exception as e:
             print(f"Error al cargar el modelo: {str(e)}")
             raise RuntimeError(f"No se pudo cargar el modelo: {str(e)}")
     
     def _load_feature_columns(self) -> None:
-        """Carga la estructura de columnas del dataset procesado"""
+        """Carga la estructura de columnas del dataset procesado o modelo"""
         try:
-            # Cargar un registro del dataset procesado para obtener estructura
+            # Primero intentamos cargar las columnas usadas en el modelo
+            # Esto garantiza que usemos exactamente las mismas columnas que durante el entrenamiento
+            if hasattr(self.model, 'feature_names_in_'):
+                # Scikit-learn 1.0+ guarda las columnas usadas durante el entrenamiento
+                self.feature_columns = self.model.feature_names_in_.tolist()
+                print(f"Columnas cargadas directamente del modelo: {len(self.feature_columns)} columnas")
+                return
+                
+            # Si no podemos obtener las columnas del modelo, las inferimos del dataset
             sample_df = pd.read_csv('static/data/data_processed.csv', nrows=1)
+            
+            # Excluir columnas de la variable objetivo
             self.feature_columns = [col for col in sample_df.columns 
                                   if col != self.target_column and
-                                     col != f"{self.target_column}_log"]
-            print(f"Estructura de features cargada: {len(self.feature_columns)} columnas")
+                                     not col.endswith('_log')]
+            
+            print(f"Estructura de features cargada del dataset: {len(self.feature_columns)} columnas")
+            print(f"Primeras 5 columnas: {self.feature_columns[:5]}")
+            
         except Exception as e:
             print(f"Error al cargar estructura de features: {str(e)}")
             # Intentamos continuar con columnas mínimas
-            self.feature_columns = ['MES', 'MES_NUM']
+            self.feature_columns = ['MES_NUM']
+            print("Usando columnas mínimas como fallback")
     
     def prepare_features(self, input_data: Dict[str, Any]) -> pd.DataFrame:
         """
@@ -93,43 +128,51 @@ class ModelService:
             if field not in input_data:
                 raise ValueError(f"Campo requerido no encontrado: {field}")
         
-        # Crear DataFrame con una fila
-        df = pd.DataFrame([input_data])
+        # Crear DataFrame temporal para transformaciones
+        temp_df = pd.DataFrame([input_data])
         
         # Convertir MES a número
-        if 'MES' in df.columns:
-            mes = df['MES'].iloc[0]
+        if 'MES' in temp_df.columns:
+            mes = temp_df['MES'].iloc[0]
             if mes in self.month_map:
-                df['MES_NUM'] = self.month_map[mes]
+                temp_df['MES_NUM'] = self.month_map[mes]
             else:
                 raise ValueError(f"Mes no válido: {mes}")
         
-        # Aplicar one-hot encoding para ESTRATO y MUNICIPIO
-        # Crear columnas de estrato (solo activar la correspondiente)
-        for i in range(1, 7):  # Estratos del 1 al 6
-            estrato_col = f'Estrato_{i}'
-            if estrato_col in self.feature_columns:
-                df[estrato_col] = (df['ESTRATO'] == i)
+        # Crear DataFrame final solo con las columnas esperadas por el modelo
+        result_df = pd.DataFrame()
         
-        # Crear columnas de municipio (solo activar el correspondiente)
+        # Agregar MES_NUM si está en las features esperadas
+        if 'MES_NUM' in self.feature_columns:
+            result_df['MES_NUM'] = temp_df['MES_NUM']
+        
+        # Inicializar todas las columnas one-hot con False
         for col in self.feature_columns:
-            if col.startswith('Municipio_'):
-                municipio = col.replace('Municipio_', '')
-                df[col] = (df['MUNICIPIO'] == municipio)
+            if col != 'MES_NUM':  # Saltamos MES_NUM porque ya lo tratamos
+                result_df[col] = False
         
-        # Filtrar solo las columnas necesarias para el modelo
-        model_columns = [col for col in self.feature_columns if col in df.columns]
+        # Activar las columnas de estrato correspondientes
+        estrato = input_data['ESTRATO']
+        estrato_col = f'Estrato_{estrato}'
+        if estrato_col in self.feature_columns:
+            result_df[estrato_col] = True
         
-        # Verificar si faltan columnas
-        missing_cols = [col for col in self.feature_columns if col not in df.columns]
-        if missing_cols:
-            print(f"Columnas faltantes: {missing_cols}")
-            # Agregar columnas faltantes con valor False (para one-hot encoding)
-            for col in missing_cols:
-                df[col] = False
+        # Activar las columnas de municipio correspondientes
+        municipio = input_data['MUNICIPIO']
+        municipio_col = f'Municipio_{municipio}'
+        if municipio_col in self.feature_columns:
+            result_df[municipio_col] = True
         
-        # Asegurar que solo usamos las columnas del modelo y en el orden correcto
-        result_df = df[self.feature_columns].copy()
+        # Verificar que tenemos todas las columnas requeridas
+        for col in self.feature_columns:
+            if col not in result_df.columns:
+                print(f"Columna faltante añadida: {col}")
+                result_df[col] = False
+        
+        # Asegurar que el orden de las columnas es exactamente el mismo que durante el entrenamiento
+        result_df = result_df[self.feature_columns]
+        
+        print(f"Columnas preparadas para predicción: {result_df.columns.tolist()}")
         
         return result_df
     
@@ -148,16 +191,12 @@ class ModelService:
             X = self.prepare_features(input_data)
             
             # Aplicar preprocesamiento si existe
-            if self.preprocessor:
-                # Aquí asumimos que el preprocesador ya sabe qué columnas transformar
-                X_processed = X.copy()
-                # Solo aplicamos a MES_NUM si existe en el preprocesador
-                if 'MES_NUM' in X.columns:
-                    X_mes = X[['MES_NUM']]
-                    X_mes_scaled = self.preprocessor.transform(X_mes)
-                    X_processed['MES_NUM'] = X_mes_scaled.flatten()
-            else:
-                X_processed = X
+            X_processed = X.copy()
+            if self.preprocessor and 'MES_NUM' in X.columns:
+                # Solo aplicamos preprocesamiento a MES_NUM si existe
+                X_mes = X[['MES_NUM']]
+                X_mes_scaled = self.preprocessor.transform(X_mes)
+                X_processed['MES_NUM'] = X_mes_scaled.flatten()
             
             # Realizar predicción
             prediction = self.model.predict(X_processed)[0]

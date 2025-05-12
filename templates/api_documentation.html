@@ -1,0 +1,483 @@
+{% extends "layout.html" %}
+{% block title %}Documentación API{% endblock %}
+{% block content %}
+<h1>Documentación de la API</h1>
+<hr>
+
+{% if not model_loaded %}
+<div class="alert alert-warning">
+    <h3><i class="fas fa-exclamation-triangle"></i> Modelo no disponible</h3>
+    <p>El modelo de predicción aún no ha sido entrenado. Por favor, entrene el modelo primero en la sección de Ingeniería del Modelo.</p>
+    <a href="{{ url_for('model_engineering') }}" class="btn btn-primary">Ir a Ingeniería del Modelo</a>
+</div>
+{% else %}
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="alert alert-info">
+            <h4><i class="fas fa-server"></i> Base URL</h4>
+            <code id="base-url">{{ base_url }}</code>
+            <button class="btn btn-sm btn-outline-info ms-2" onclick="copyToClipboard('base-url')">
+                <i class="fas fa-copy"></i> Copiar
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <!-- Predicción Individual -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">POST /predict</h3>
+            </div>
+            <div class="card-body">
+                <p class="lead">Realiza una predicción individual de consumo promedio de agua por suscriptor.</p>
+                
+                <h5><i class="fas fa-paper-plane"></i> Solicitud</h5>
+                <pre><code id="predict-request">{
+    "MES": "ENERO",
+    "MUNICIPIO": "Aguadas",
+    "ESTRATO": 3
+}</code></pre>
+                <button class="btn btn-sm btn-outline-primary mb-3" onclick="copyToClipboard('predict-request')">
+                    <i class="fas fa-copy"></i> Copiar
+                </button>
+                
+                <h5><i class="fas fa-reply"></i> Respuesta</h5>
+                <pre><code id="predict-response">{
+    "success": true,
+    "prediction": 15.67,
+    "unit": "m³/suscriptor",
+    "input_data": {
+        "MES": "ENERO",
+        "MUNICIPIO": "Aguadas",
+        "ESTRATO": 3
+    },
+    "model_used": "RandomForest",
+    "confidence": {
+        "r2_test": 0.72,
+        "rmse_test": 2.68
+    }
+}</code></pre>
+                <button class="btn btn-sm btn-outline-success mb-3" onclick="copyToClipboard('predict-response')">
+                    <i class="fas fa-copy"></i> Copiar
+                </button>
+                
+                <h5><i class="fas fa-terminal"></i> Ejemplo con cURL</h5>
+                <pre><code id="predict-curl">curl -X POST "{{ base_url }}/predict" \
+  -H "Content-Type: application/json" \
+  -d '{"MES": "ENERO", "MUNICIPIO": "Aguadas", "ESTRATO": 3}'</code></pre>
+                <button class="btn btn-sm btn-outline-dark mb-3" onclick="copyToClipboard('predict-curl')">
+                    <i class="fas fa-copy"></i> Copiar
+                </button>
+                
+                <div class="alert alert-light border">
+                    <h5>Parámetros Requeridos</h5>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Parámetro</th>
+                                <th>Tipo</th>
+                                <th>Descripción</th>
+                                <th>Valores Válidos</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>MES</code></td>
+                                <td>String</td>
+                                <td>Mes para la predicción</td>
+                                <td>
+                                    {% for mes in valid_values.meses %}
+                                        <span class="badge bg-light text-dark me-1">{{ mes }}</span>
+                                    {% endfor %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><code>MUNICIPIO</code></td>
+                                <td>String</td>
+                                <td>Municipio de Caldas</td>
+                                <td>
+                                    <select class="form-select form-select-sm">
+                                        {% for municipio in valid_values.municipios %}
+                                            <option>{{ municipio }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><code>ESTRATO</code></td>
+                                <td>Number</td>
+                                <td>Estrato socioeconómico</td>
+                                <td>
+                                    {% for estrato in valid_values.estratos %}
+                                        <span class="badge bg-light text-dark me-1">{{ estrato }}</span>
+                                    {% endfor %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Predicción en Lote -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">POST /predict_batch</h3>
+            </div>
+            <div class="card-body">
+                <p class="lead">Realiza múltiples predicciones en una sola solicitud.</p>
+                
+                <h5><i class="fas fa-paper-plane"></i> Solicitud</h5>
+                <pre><code id="batch-request">[
+    {"MES": "ENERO", "MUNICIPIO": "Aguadas", "ESTRATO": 3},
+    {"MES": "FEBRERO", "MUNICIPIO": "Chinchina", "ESTRATO": 2}
+]</code></pre>
+                <button class="btn btn-sm btn-outline-primary mb-3" onclick="copyToClipboard('batch-request')">
+                    <i class="fas fa-copy"></i> Copiar
+                </button>
+                
+                <h5><i class="fas fa-reply"></i> Respuesta</h5>
+                <pre><code id="batch-response">{
+    "success": true,
+    "predictions": [
+        {
+            "prediction": 15.67,
+            "unit": "m³/suscriptor",
+            "input_data": {"MES": "ENERO", "MUNICIPIO": "Aguadas", "ESTRATO": 3},
+            "model_used": "RandomForest"
+        },
+        {
+            "prediction": 12.34,
+            "unit": "m³/suscriptor",
+            "input_data": {"MES": "FEBRERO", "MUNICIPIO": "Chinchina", "ESTRATO": 2},
+            "model_used": "RandomForest"
+        }
+    ]
+}</code></pre>
+                <button class="btn btn-sm btn-outline-success mb-3" onclick="copyToClipboard('batch-response')">
+                    <i class="fas fa-copy"></i> Copiar
+                </button>
+                
+                <h5><i class="fas fa-terminal"></i> Ejemplo con cURL</h5>
+                <pre><code id="batch-curl">curl -X POST "{{ base_url }}/predict_batch" \
+  -H "Content-Type: application/json" \
+  -d '[{"MES": "ENERO", "MUNICIPIO": "Aguadas", "ESTRATO": 3}, {"MES": "FEBRERO", "MUNICIPIO": "Chinchina", "ESTRATO": 2}]'</code></pre>
+                <button class="btn btn-sm btn-outline-dark mb-3" onclick="copyToClipboard('batch-curl')">
+                    <i class="fas fa-copy"></i> Copiar
+                </button>
+                
+                <div class="alert alert-light border">
+                    <h5>Consideraciones</h5>
+                    <ul>
+                        <li>Máximo 100 predicciones por solicitud.</li>
+                        <li>Cada elemento del array debe tener los mismos parámetros que en la predicción individual.</li>
+                        <li>Si alguna predicción falla, la respuesta incluirá un campo <code>errors</code> con detalles de los errores.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información del Modelo -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h3 class="card-title mb-0">GET /model_info</h3>
+            </div>
+            <div class="card-body">
+                <p class="lead">Obtiene información sobre el modelo en producción y valores válidos para las predicciones.</p>
+                
+                <h5><i class="fas fa-reply"></i> Respuesta</h5>
+                <pre><code id="info-response">{
+    "success": true,
+    "model_name": "RandomForest",
+    "metrics": {
+        "validation": {
+            "rmse": 2.85,
+            "mae": 2.12,
+            "r2": 0.75
+        },
+        "test": {
+            "rmse": 2.68,
+            "mae": 1.98,
+            "r2": 0.72
+        }
+    },
+    "parameters": {
+        "n_estimators": 100,
+        "max_depth": 20,
+        "min_samples_split": 5
+    },
+    "valid_values": {
+        "meses": ["ENERO", "FEBRERO", ...],
+        "municipios": ["Aguadas", "Chinchina", ...],
+        "estratos": [1, 2, 3, 4, 5, 6]
+    }
+}</code></pre>
+                <button class="btn btn-sm btn-outline-info mb-3" onclick="copyToClipboard('info-response')">
+                    <i class="fas fa-copy"></i> Copiar
+                </button>
+                
+                <h5><i class="fas fa-terminal"></i> Ejemplo con cURL</h5>
+                <pre><code id="info-curl">curl -X GET "{{ base_url }}/model_info"</code></pre>
+                <button class="btn btn-sm btn-outline-dark mb-3" onclick="copyToClipboard('info-curl')">
+                    <i class="fas fa-copy"></i> Copiar
+                </button>
+            </div>
+        </div>
+
+        <!-- Estado del Servicio -->
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h3 class="card-title mb-0">GET /health</h3>
+            </div>
+            <div class="card-body">
+                <p class="lead">Verifica el estado del servicio de predicción.</p>
+                
+                <h5><i class="fas fa-reply"></i> Respuesta</h5>
+                <pre><code id="health-response">{
+    "success": true,
+    "status": "healthy",
+    "model_loaded": true,
+    "model_name": "RandomForest"
+}</code></pre>
+                <button class="btn btn-sm btn-outline-success mb-3" onclick="copyToClipboard('health-response')">
+                    <i class="fas fa-copy"></i> Copiar
+                </button>
+                
+                <h5><i class="fas fa-terminal"></i> Ejemplo con cURL</h5>
+                <pre><code id="health-curl">curl -X GET "{{ base_url }}/health"</code></pre>
+                <button class="btn btn-sm btn-outline-dark mb-3" onclick="copyToClipboard('health-curl')">
+                    <i class="fas fa-copy"></i> Copiar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h3 class="card-title mb-0"><i class="fas fa-exclamation-triangle"></i> Códigos de Estado HTTP</h3>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descripción</th>
+                            <th>Cuándo ocurre</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>200 OK</code></td>
+                            <td>Solicitud exitosa</td>
+                            <td>La solicitud se procesó correctamente</td>
+                        </tr>
+                        <tr>
+                            <td><code>400 Bad Request</code></td>
+                            <td>Solicitud incorrecta</td>
+                            <td>Parámetros inválidos o faltantes</td>
+                        </tr>
+                        <tr>
+                            <td><code>500 Internal Server Error</code></td>
+                            <td>Error interno del servidor</td>
+                            <td>Error al procesar la solicitud</td>
+                        </tr>
+                        <tr>
+                            <td><code>503 Service Unavailable</code></td>
+                            <td>Servicio no disponible</td>
+                            <td>Modelo no cargado o en entrenamiento</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h3 class="card-title mb-0"><i class="fas fa-code"></i> Ejemplos de Integración</h3>
+            </div>
+            <div class="card-body">
+                <nav>
+                    <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                        <button class="nav-link active" id="nav-python-tab" data-bs-toggle="tab" data-bs-target="#nav-python" type="button" role="tab" aria-controls="nav-python" aria-selected="true">Python</button>
+                        <button class="nav-link" id="nav-js-tab" data-bs-toggle="tab" data-bs-target="#nav-js" type="button" role="tab" aria-controls="nav-js" aria-selected="false">JavaScript</button>
+                    </div>
+                </nav>
+                <div class="tab-content" id="nav-tabContent">
+                    <div class="tab-pane fade show active" id="nav-python" role="tabpanel" aria-labelledby="nav-python-tab">
+                        <pre><code id="python-example">import requests
+
+# URL base de la API
+base_url = "{{ base_url }}"
+
+# Predicción individual
+def predict_consumption(mes, municipio, estrato):
+    url = f"{base_url}/predict"
+    payload = {
+        "MES": mes,
+        "MUNICIPIO": municipio,
+        "ESTRATO": estrato
+    }
+    
+    response = requests.post(url, json=payload)
+    
+    if response.status_code == 200:
+        result = response.json()
+        if result.get("success"):
+            print(f"Consumo predicho: {result['prediction']} {result['unit']}")
+            return result['prediction']
+        else:
+            print(f"Error: {result.get('error')}")
+    else:
+        print(f"Error en la solicitud: {response.status_code}")
+    
+    return None
+
+# Predicción en lote
+def predict_batch(data_list):
+    url = f"{base_url}/predict_batch"
+    response = requests.post(url, json=data_list)
+    
+    if response.status_code == 200:
+        result = response.json()
+        if result.get("success"):
+            predictions = result.get("predictions", [])
+            print(f"Se realizaron {len(predictions)} predicciones")
+            return predictions
+        else:
+            print(f"Error: {result.get('error')}")
+    else:
+        print(f"Error en la solicitud: {response.status_code}")
+    
+    return []
+
+# Ejemplo de uso
+if __name__ == "__main__":
+    # Predicción individual
+    predict_consumption("ENERO", "Aguadas", 3)
+    
+    # Predicción en lote
+    batch_data = [
+        {"MES": "ENERO", "MUNICIPIO": "Aguadas", "ESTRATO": 3},
+        {"MES": "FEBRERO", "MUNICIPIO": "Chinchina", "ESTRATO": 2}
+    ]
+    predict_batch(batch_data)</code></pre>
+                        <button class="btn btn-sm btn-outline-secondary mt-2" onclick="copyToClipboard('python-example')">
+                            <i class="fas fa-copy"></i> Copiar Ejemplo
+                        </button>
+                    </div>
+                    <div class="tab-pane fade" id="nav-js" role="tabpanel" aria-labelledby="nav-js-tab">
+                        <pre><code id="js-example">// URL base de la API
+const baseUrl = '{{ base_url }}';
+
+// Predicción individual
+async function predictConsumption(mes, municipio, estrato) {
+  try {
+    const response = await fetch(`${baseUrl}/predict`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        MES: mes,
+        MUNICIPIO: municipio,
+        ESTRATO: estrato
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      console.log(`Consumo predicho: ${result.prediction} ${result.unit}`);
+      return result.prediction;
+    } else {
+      console.error(`Error: ${result.error || 'Desconocido'}`);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error en la solicitud:', error);
+    return null;
+  }
+}
+
+// Predicción en lote
+async function predictBatch(dataList) {
+  try {
+    const response = await fetch(`${baseUrl}/predict_batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(dataList)
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      const predictions = result.predictions || [];
+      console.log(`Se realizaron ${predictions.length} predicciones`);
+      return predictions;
+    } else {
+      console.error(`Error: ${result.error || 'Desconocido'}`);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error en la solicitud:', error);
+    return [];
+  }
+}
+
+// Ejemplo de uso
+// Predicción individual
+predictConsumption('ENERO', 'Aguadas', 3)
+  .then(prediction => console.log('Predicción completada'));
+
+// Predicción en lote
+const batchData = [
+  {MES: 'ENERO', MUNICIPIO: 'Aguadas', ESTRATO: 3},
+  {MES: 'FEBRERO', MUNICIPIO: 'Chinchina', ESTRATO: 2}
+];
+
+predictBatch(batchData)
+  .then(predictions => console.log('Predicciones en lote completadas'));</code></pre>
+                        <button class="btn btn-sm btn-outline-secondary mt-2" onclick="copyToClipboard('js-example')">
+                            <i class="fas fa-copy"></i> Copiar Ejemplo
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(elementId) {
+    const el = document.getElementById(elementId);
+    const text = el.textContent;
+    
+    navigator.clipboard.writeText(text).then(function() {
+        // Mostrar feedback temporal
+        const originalHTML = el.parentNode.innerHTML;
+        const originalText = el.parentNode.querySelector('button').textContent;
+        
+        el.parentNode.querySelector('button').innerHTML = '<i class="fas fa-check"></i> Copiado';
+        
+        setTimeout(() => {
+            el.parentNode.querySelector('button').innerHTML = originalText;
+        }, 2000);
+    }).catch(function(err) {
+        console.error('Error al copiar texto: ', err);
+    });
+}
+</script>
+{% endif %}
+{% endblock %}
